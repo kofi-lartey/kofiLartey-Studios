@@ -10,6 +10,45 @@ import {
 const LOGO_URL =
   'https://res.cloudinary.com/djjgkezui/image/upload/v1778486731/ChatGPT_Image_May_11__2026__08_03_25_AM-removebg-preview_v3odik.png';
 
+const LOADER_WHITELIST = new Set([
+  '/',
+  '/coming-soon',
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/email-confirmation',
+  '/clientGallery',
+  '/dashboard',
+  '/galleries',
+  '/clients',
+  '/settings',
+  '/privacy',
+  '/terms',
+  '/api-docs',
+  '/press',
+  '/view-demo',
+]);
+
+const normalizePath = (path) => {
+  const hashIndex = path.indexOf('#');
+  if (hashIndex !== -1) {
+    return path.substring(0, hashIndex);
+  }
+  const queryIndex = path.indexOf('?');
+  if (queryIndex !== -1) {
+    return path.substring(0, queryIndex);
+  }
+  return path;
+};
+
+const isWhitelistedNavigation = (href) => {
+  if (!href || href === '#' || href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('javascript:')) {
+    return false;
+  }
+  const normalizedPath = normalizePath(href);
+  return LOADER_WHITELIST.has(normalizedPath);
+};
+
 const LoadingContext = createContext({
   isLoading: false,
   progress: 0,
@@ -38,7 +77,6 @@ export const LoadingProvider = ({ children }) => {
   const finishTimeoutRef = useRef(null);
   const activeLoadersRef = useRef(0);
 
-  // START PROGRESS ANIMATION
   const startProgressSimulation = useCallback(() => {
     if (progressIntervalRef.current) {
       clearInterval(progressIntervalRef.current);
@@ -46,33 +84,25 @@ export const LoadingProvider = ({ children }) => {
 
     progressIntervalRef.current = setInterval(() => {
       setProgress((prev) => {
-        // Slow down near the end
         if (prev >= 90) return prev;
         if (prev >= 75) return prev + 1;
-
         return prev + Math.random() * 8;
       });
     }, 120);
   }, []);
 
-  // START LOADING
   const startLoading = useCallback(() => {
     activeLoadersRef.current += 1;
 
     if (activeLoadersRef.current === 1) {
       setIsLoading(true);
       setProgress(5);
-
       startProgressSimulation();
     }
   }, [startProgressSimulation]);
 
-  // FINISH LOADING
   const finishLoading = useCallback(() => {
-    activeLoadersRef.current = Math.max(
-      0,
-      activeLoadersRef.current - 1
-    );
+    activeLoadersRef.current = Math.max(0, activeLoadersRef.current - 1);
 
     if (activeLoadersRef.current > 0) return;
 
@@ -93,51 +123,30 @@ export const LoadingProvider = ({ children }) => {
     }, 350);
   }, []);
 
-  // AUTO GLOBAL LOADER
+  const handleNavigationClick = useCallback((e) => {
+    const target = e.target.closest('a[href]');
+    if (!target) return;
+
+    const href = target.getAttribute('href');
+    if (isWhitelistedNavigation(href)) {
+      startLoading();
+    }
+  }, [startLoading]);
+
+  const handlePopState = useCallback(() => {
+    const currentPath = normalizePath(window.location.pathname + window.location.search);
+    if (LOADER_WHITELIST.has(currentPath)) {
+      startLoading();
+    }
+  }, [startLoading]);
+
   useEffect(() => {
-    const handleInteraction = (e) => {
-      const target = e.target;
-
-      const isInteractive = target.closest(
-        'button, a, input, select, textarea, [role="button"], [tabindex]'
-      );
-
-      const noLoader = target.closest('[data-no-loader]');
-
-      if (!isInteractive || noLoader) return;
-
-      startLoading();
-
-      // Simulated finish
-      const timeout = setTimeout(() => {
-        finishLoading();
-      }, 900);
-
-      return () => clearTimeout(timeout);
-    };
-
-    const handlePopState = () => {
-      startLoading();
-
-      setTimeout(() => {
-        finishLoading();
-      }, 700);
-    };
-
-    document.addEventListener('click', handleInteraction, true);
+    document.addEventListener('click', handleNavigationClick, true);
     window.addEventListener('popstate', handlePopState);
 
     return () => {
-      document.removeEventListener(
-        'click',
-        handleInteraction,
-        true
-      );
-
-      window.removeEventListener(
-        'popstate',
-        handlePopState
-      );
+      document.removeEventListener('click', handleNavigationClick, true);
+      window.removeEventListener('popstate', handlePopState);
 
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
@@ -147,7 +156,7 @@ export const LoadingProvider = ({ children }) => {
         clearTimeout(finishTimeoutRef.current);
       }
     };
-  }, [startLoading, finishLoading]);
+  }, [handleNavigationClick, handlePopState]);
 
   const value = {
     isLoading,
@@ -172,17 +181,13 @@ export const LoadingProvider = ({ children }) => {
         }`}
       >
         <div className="flex flex-col items-center gap-6">
-          {/* LOADER */}
           <div className="relative w-24 h-24">
-            {/* OUTER GLOW */}
             <div className="absolute inset-0 rounded-full bg-indigo-500/20 blur-2xl animate-pulse" />
 
-            {/* ROTATING RING */}
             <svg
               className="absolute inset-0 w-full h-full -rotate-90"
               viewBox="0 0 120 120"
             >
-              {/* TRACK */}
               <circle
                 cx="60"
                 cy="60"
@@ -192,7 +197,6 @@ export const LoadingProvider = ({ children }) => {
                 strokeWidth="6"
               />
 
-              {/* PROGRESS */}
               <circle
                 cx="60"
                 cy="60"
@@ -202,9 +206,7 @@ export const LoadingProvider = ({ children }) => {
                 strokeWidth="6"
                 strokeLinecap="round"
                 strokeDasharray={327}
-                strokeDashoffset={
-                  327 - (327 * progress) / 100
-                }
+                strokeDashoffset={327 - (327 * progress) / 100}
                 className="transition-all duration-150 ease-linear"
               />
 
@@ -223,7 +225,6 @@ export const LoadingProvider = ({ children }) => {
               </defs>
             </svg>
 
-            {/* LOGO */}
             <div className="absolute inset-0 flex items-center justify-center">
               <img
                 src={LOGO_URL}
@@ -233,13 +234,11 @@ export const LoadingProvider = ({ children }) => {
             </div>
           </div>
 
-          {/* TEXT */}
           <div className="text-center space-y-3">
             <p className="text-white/90 text-sm tracking-[0.25em] uppercase font-medium">
               Loading
             </p>
 
-            {/* BAR */}
             <div className="w-52 h-[5px] bg-white/10 rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all duration-150"
@@ -249,7 +248,6 @@ export const LoadingProvider = ({ children }) => {
               />
             </div>
 
-            {/* PERCENT */}
             <p className="text-white/50 text-xs">
               {Math.floor(progress)}%
             </p>

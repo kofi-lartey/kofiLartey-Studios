@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import HomePage from './pages/HomePage';
@@ -18,10 +18,29 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import APIDocumentation from './pages/APIDocumentation';
 import PressKit from './pages/PressKit';
+import { useEffect } from 'react';
+import { useLoading } from './context/LoadingContext';
+
+const NavigationListener = () => {
+  const location = useLocation();
+  const { finishLoading, isLoading } = useLoading();
+
+  useEffect(() => {
+    if (isLoading) {
+      const timer = setTimeout(() => {
+        finishLoading();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [location.pathname, finishLoading, isLoading]);
+
+  return null;
+};
 
 function App() {
   return (
     <AuthProvider>
+      <NavigationListener />
       <div className="antialiased selection:bg-indigo-500/30 selection:text-white bg-[#050505] min-h-screen">
         <Routes>
           {/* Landing & Auth */}
