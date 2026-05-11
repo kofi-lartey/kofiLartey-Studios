@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { FiUpload, FiX, FiCheckCircle, FiAlertCircle, FiFolder } from 'react-icons/fi';
 import Loader from './Loader';
+import imageCompression from 'browser-image-compression';
+import axios from 'axios';
 
 const ImageUploadZone = ({ onUploadComplete, galleryName, galleryId, onGalleryChange }) => {
   const [isDragging, setIsDragging] = useState(false);
@@ -82,83 +84,61 @@ const ImageUploadZone = ({ onUploadComplete, galleryName, galleryId, onGalleryCh
   const processFiles = useCallback(async (files) => {
     const activeGalleryName = galleryName || localGalleryName;
     const activeGalleryId = galleryId || selectedGalleryId;
-    
+
     if (!activeGalleryName && !activeGalleryId) {
       setUploadStatus({ type: 'error', message: 'Please create or select a gallery first' });
       setShowGalleryInput(true);
       return;
     }
 
-    setUploading(true);
-    setUploadStatus(null);
-    
-    const validFiles = Array.from(files).filter(file => 
-      ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)
-    );
-
-    if (validFiles.length === 0) {
-      setUploadStatus({ type: 'error', message: 'No valid image files selected' });
-      setUploading(false);
+    if (files.length > 10) {
+      setUploadStatus({ type: 'error', message: 'You can upload a maximum of 10 images at a time' });
       return;
     }
 
-    const uploadedImages = [];
-    
-    for (const file of validFiles) {
-      const reader = new FileReader();
-      const imageData = await new Promise((resolve) => {
-        reader.onload = () => resolve({
-          id: `${activeGalleryId || activeGalleryName}_${Date.now()}_${Math.random()}`,
-          name: file.name,
-          url: reader.result,
-          type: file.type,
-          size: file.size,
-          galleryName: activeGalleryName,
-          galleryId: activeGalleryId,
-          uploadedAt: new Date().toISOString(),
-          accessKey: localStorage.getItem('currentAccessKey') || '7H2K-XP91'
-        });
-        reader.readAsDataURL(file);
-      });
-      uploadedImages.push(imageData);
-    }
+    setUploading(true);
+    setUploadStatus(null);
 
-    // Get existing uploads
-    const existing = JSON.parse(localStorage.getItem('uploadedImages') || '[]');
-    
-    // Add to gallery-specific storage
-    const galleryKey = `gallery_${activeGalleryId || activeGalleryName}`;
-    const galleryUploads = JSON.parse(localStorage.getItem(galleryKey) || '[]');
-    const updatedGalleryUploads = [...uploadedImages, ...galleryUploads];
-    localStorage.setItem(galleryKey, JSON.stringify(updatedGalleryUploads));
-    
-    // Also add to global storage
-    const updated = [...uploadedImages, ...existing];
-    localStorage.setItem('uploadedImages', JSON.stringify(updated));
-    
-    // Update gallery metadata
-    const allGalleries = JSON.parse(localStorage.getItem('galleries') || '[]');
-    const galleryExists = allGalleries.find(g => g.id === activeGalleryId || g.name === activeGalleryName);
-    
-    if (!galleryExists && activeGalleryName) {
-      allGalleries.push({
-        id: activeGalleryId || `gallery_${Date.now()}`,
-        name: activeGalleryName,
-        createdAt: new Date().toISOString(),
-        imageCount: updatedGalleryUploads.length,
-        accessKey: localStorage.getItem('currentAccessKey') || '7H2K-XP91'
+    const formData = new FormData();
+    const compressedFiles = [];
+
+    try {
+      setUploadStatus({ type: 'info', message: 'Optimizing images...' });
+
+      for (const file of files) {
+        if (file.size <= 10 * 1024 * 1024) { // 10MB limit
+          compressedFiles.push(file);
+        } else {
+          const compressedFile = await imageCompression(file, {
+            maxSizeMB: 9,
+            maxWidthOrHeight: 2500,
+            useWebWorker: true,
+            initialQuality: 0.8,
+          });
+          compressedFiles.push(compressedFile);
+        }
+      }
+
+      setUploadStatus({ type: 'info', message: 'Uploading to Studio...' });
+
+      compressedFiles.forEach((file) => {
+        formData.append('images', file);
       });
-    } else if (galleryExists) {
-      galleryExists.imageCount = updatedGalleryUploads.length;
+
+      const response = await axios.post('/api/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      setUploadStatus({ type: 'success', message: `${response.data.uploadedCount} image(s) uploaded successfully!` });
+      onUploadComplete?.(response.data.uploadedImages);
+    } catch (error) {
+      setUploadStatus({ type: 'error', message: 'Image upload failed. Please try again.' });
+    } finally {
+      setUploading(false);
+      setTimeout(() => setUploadStatus(null), 3000);
     }
-    
-    localStorage.setItem('galleries', JSON.stringify(allGalleries));
-    
-    setUploadStatus({ type: 'success', message: `${uploadedImages.length} image(s) uploaded to "${activeGalleryName}"` });
-    setUploading(false);
-    onUploadComplete?.(uploadedImages);
-    
-    setTimeout(() => setUploadStatus(null), 3000);
   }, [galleryName, galleryId, localGalleryName, selectedGalleryId, onUploadComplete]);
 
   const handleDrop = useCallback((e) => {
