@@ -47,7 +47,7 @@ const Gallery = () => {
 
   const loadGalleryImages = (gallery) => {
     if (!gallery) return;
-    
+
     const galleryKey = `gallery_${gallery.id}`;
     const galleryImages = JSON.parse(localStorage.getItem(galleryKey) || '[]');
     setGalleryPreviewImages(galleryImages.slice(0, 6));
@@ -57,20 +57,20 @@ const Gallery = () => {
   const generateAccessKey = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     const newKey = Array(8).fill().map(() => chars[Math.floor(Math.random() * chars.length)]).join('');
-    const formattedKey = `${newKey.slice(0,4)}-${newKey.slice(4,8)}`;
+    const formattedKey = `${newKey.slice(0, 4)}-${newKey.slice(4, 8)}`;
     setAccessKey(formattedKey);
     localStorage.setItem('currentAccessKey', formattedKey);
-    
+
     // If there's a selected gallery, update its access key
     if (selectedGallery) {
       const updatedGallery = { ...selectedGallery, accessKey: formattedKey };
       updateGalleryInStorage(updatedGallery);
       setSelectedGallery(updatedGallery);
-      
+
       // Regenerate link with new access key
       generateLinkForGallery(updatedGallery);
     }
-    
+
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -86,17 +86,17 @@ const Gallery = () => {
       console.log("Please select a gallery name or enter client info");
       return;
     }
-    
+
     const galleries = JSON.parse(localStorage.getItem('galleries') || '[]');
-    const results = galleries.filter(g => 
+    const results = galleries.filter(g =>
       (galleryNameSearch && g.name.toLowerCase().includes(galleryNameSearch.toLowerCase())) ||
-      (searchTerm && (g.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                      g.clientEmail?.toLowerCase().includes(searchTerm.toLowerCase())))
+      (searchTerm && (g.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        g.clientEmail?.toLowerCase().includes(searchTerm.toLowerCase())))
     );
-    
+
     setSearchResults(results);
     setShowSearchDropdown(results.length > 0);
-    
+
     if (results.length === 1) {
       selectGallery(results[0]);
     }
@@ -115,15 +115,14 @@ const Gallery = () => {
     setRefreshUploads(prev => prev + 1);
     setShowSearchDropdown(false);
     setIsCreatingNew(false);
-    
+
     loadGalleryImages(gallery);
     generateLinkForGallery(gallery);
   };
 
   const generateLinkForGallery = (gallery) => {
-    const uniqueId = gallery.id.split('_')[1] || Math.random().toString(36).substring(2, 10);
-    // The link now includes the access key for authentication
-    const link = `${window.location.origin}/gallery/${gallery.name.toLowerCase().replace(/\s+/g, "_")}/${gallery.id}?accessKey=${gallery.accessKey}`;
+    // Secure link with access key in URL
+    const link = `${window.location.origin}/clientGallery?accessKey=${gallery.accessKey}`;
     setGeneratedShareLink(link);
     setShowLinkCard(true);
     
@@ -137,30 +136,30 @@ const Gallery = () => {
     });
     localStorage.setItem('galleries', JSON.stringify(updatedGalleries));
     setAllGalleries(updatedGalleries);
-  };
+};
 
   const handleCreateAndGenerate = () => {
     let finalGalleryName = galleryName;
-    
+
     if (!finalGalleryName || finalGalleryName === "new") {
       alert("Please select or enter a gallery name");
       return;
     }
-    
+
     if (!userName || !userEmail) {
       alert("Please fill in all required fields");
       return;
     }
-    
+
     // Generate a NEW access key for this gallery
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     const newKey = Array(8).fill().map(() => chars[Math.floor(Math.random() * chars.length)]).join('');
-    const newAccessKey = `${newKey.slice(0,4)}-${newKey.slice(4,8)}`;
-    
+    const newAccessKey = `${newKey.slice(0, 4)}-${newKey.slice(4, 8)}`;
+
     const existingGallery = allGalleries.find(g => g.name === finalGalleryName);
-    
+
     let newGallery;
-    
+
     if (existingGallery) {
       // Update existing gallery with new user and NEW access key
       newGallery = {
@@ -172,8 +171,8 @@ const Gallery = () => {
         accessKey: newAccessKey, // Update with new access key
         updatedAt: new Date().toISOString()
       };
-      
-      const updatedGalleries = allGalleries.map(g => 
+
+      const updatedGalleries = allGalleries.map(g =>
         g.id === existingGallery.id ? newGallery : g
       );
       localStorage.setItem('galleries', JSON.stringify(updatedGalleries));
@@ -192,26 +191,26 @@ const Gallery = () => {
         downloadPermissions: downloadPermissions,
         shareLink: ""
       };
-      
+
       const updatedGalleries = [...allGalleries, newGallery];
       localStorage.setItem('galleries', JSON.stringify(updatedGalleries));
       setAllGalleries(updatedGalleries);
     }
-    
+
     // Set as current gallery with the NEW access key
     setSelectedGallery(newGallery);
     setAccessKey(newAccessKey);
     localStorage.setItem('currentGallery', JSON.stringify(newGallery));
     localStorage.setItem('currentAccessKey', newAccessKey);
-    
+
     generateLinkForGallery(newGallery);
     loadGalleryImages(newGallery);
     setRecentUploadsKey(prev => prev + 1);
-    
+
     setGalleryNameSearch("");
     setSearchTerm("");
     setIsCreatingNew(false);
-    
+
     console.log("Gallery created with access key:", newAccessKey);
   };
 
@@ -230,7 +229,7 @@ const Gallery = () => {
 
   const updateGalleryInStorage = (updatedGallery) => {
     const galleries = JSON.parse(localStorage.getItem('galleries') || '[]');
-    const updatedGalleries = galleries.map(g => 
+    const updatedGalleries = galleries.map(g =>
       g.id === updatedGallery.id ? updatedGallery : g
     );
     localStorage.setItem('galleries', JSON.stringify(updatedGalleries));
@@ -285,7 +284,7 @@ const Gallery = () => {
               </p>
             </div>
             <div className="flex gap-3">
-              <button 
+              <button
                 onClick={generateAccessKey}
                 className="flex items-center gap-2 px-5 py-2.5 bg-white/5 border border-white/10 rounded-lg text-xs font-bold text-gray-300 hover:bg-white/10 transition-all"
               >
@@ -330,7 +329,7 @@ const Gallery = () => {
                   </label>
                   <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-3 flex items-center justify-between">
                     <span className="font-mono text-sm text-white tracking-wider">{accessKey}</span>
-                    <button 
+                    <button
                       onClick={() => handleCopy(accessKey)}
                       className="text-gray-500 hover:text-indigo-400 transition-colors"
                     >
@@ -345,7 +344,7 @@ const Gallery = () => {
                   <label className="text-[10px] uppercase text-gray-500 font-bold tracking-wider mb-2 block">
                     Link Expiration
                   </label>
-                  <select 
+                  <select
                     value={expiration}
                     onChange={handleExpirationChange}
                     className="w-full bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl py-2.5 px-4 text-sm text-gray-300 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all cursor-pointer hover:border-white/20"
@@ -364,7 +363,7 @@ const Gallery = () => {
                     <p className="text-sm font-medium text-gray-200">Download Permissions</p>
                     <p className="text-[10px] text-gray-500 mt-0.5">Allow high-res downloads</p>
                   </div>
-                  <button 
+                  <button
                     onClick={handleDownloadPermissionsChange}
                     className={`relative w-11 h-6 rounded-full transition-all duration-300 shadow-[0_0_12px_rgba(79,70,229,0.4)] hover:shadow-[0_0_16px_rgba(79,70,229,0.6)] ${downloadPermissions ? 'bg-indigo-600' : 'bg-gray-700'}`}
                   >
@@ -411,7 +410,7 @@ const Gallery = () => {
                           ))}
                         </select>
                       </div>
-                      
+
                       <div className="relative">
                         <input
                           type="text"
@@ -428,7 +427,7 @@ const Gallery = () => {
                         </button>
                       </div>
                     </div>
-                    
+
                     {/* All Galleries List */}
                     {allGalleries.length > 0 && (
                       <div className="mt-4">
@@ -450,7 +449,7 @@ const Gallery = () => {
                         </div>
                       </div>
                     )}
-                    
+
                     {selectedGallery && (
                       <div className="mt-4 p-3 bg-indigo-600/10 border border-indigo-500/20 rounded-xl">
                         <p className="text-[10px] text-indigo-400 font-bold">✓ Gallery Selected</p>
@@ -466,7 +465,7 @@ const Gallery = () => {
                   <div className="absolute top-0 right-0 p-3 opacity-10">
                     <FiPlus size={48} className="text-white" />
                   </div>
-                  
+
                   <div className="relative z-10">
                     <h4 className="text-[10px] uppercase font-bold text-indigo-400 tracking-[0.2em] mb-4 flex items-center gap-2">
                       <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
@@ -492,7 +491,7 @@ const Gallery = () => {
                           <option value="new" className="bg-black text-indigo-400">+ Create new gallery</option>
                         </select>
                       </div>
-                      
+
                       {isCreatingNew && (
                         <div className="group">
                           <label className="block text-[9px] uppercase text-gray-500 tracking-wider mb-1 group-focus-within:text-indigo-400 transition-colors">
@@ -571,7 +570,7 @@ const Gallery = () => {
           {/* Recent Uploads */}
           {selectedGallery && (
             <div className="mt-8">
-              <RecentUploads 
+              <RecentUploads
                 key={recentUploadsKey}
                 refreshTrigger={refreshUploads}
                 selectedGallery={selectedGallery}
@@ -600,8 +599,8 @@ const Gallery = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {galleryPreviewImages.map((img, index) => (
                   <div key={img.id || index} className="group relative aspect-[4/5] rounded-2xl overflow-hidden border border-white/5 bg-white/5">
-                    <img 
-                      src={img.url} 
+                    <img
+                      src={img.url}
                       alt={img.name}
                       className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 group-hover:scale-105"
                       loading="lazy"

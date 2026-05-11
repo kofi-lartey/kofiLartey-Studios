@@ -56,11 +56,15 @@ function App() {
           <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
-          {/* Gallery & Interactive */}
-          <Route path="/clientGallery" element={<ProtectedRoute><ClientGallery /></ProtectedRoute>} />
-          // Add this route to your router
-          <Route path="/gallery/:galleryName/:galleryId" element={<ClientGallery />} />
-          <Route path="/gallery/:galleryName/:galleryId/slideshow" element={<Slideshow />} />
+          {/* Client Gallery Access - NOT PROTECTED - Public accessible with access key */}
+          <Route path="/clientGallery" element={<ClientGallery />} />
+          <Route path="/clientGallery/slideshow" element={<Slideshow />} />
+
+          {/* Legacy routes - keep for backward compatibility */}
+          <Route path="/clientGallery/:galleryName/:galleryId" element={<ClientGallery />} />
+          <Route path="/clientGallery/:galleryName/:galleryId/slideshow" element={<Slideshow />} />
+
+          {/* Protected Slideshow for authenticated users */}
           <Route path="/slideshow" element={<ProtectedRoute><Slideshow isOpen={true} onClose={() => window.history.back()} /></ProtectedRoute>} />
 
           {/* Misc */}

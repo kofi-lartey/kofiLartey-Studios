@@ -1,4 +1,3 @@
-// components/Slideshow.jsx
 import { useState, useEffect } from "react";
 import { FiX, FiChevronLeft, FiChevronRight, FiPlay, FiPause } from "react-icons/fi";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -6,7 +5,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 const Slideshow = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { images } = location.state || { images: [] };
+    const { images, galleryName, accessKey } = location.state || { images: [], galleryName: '', accessKey: '' };
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isPlaying, setIsPlaying] = useState(true);
     const [showControls, setShowControls] = useState(true);
@@ -31,23 +30,28 @@ const Slideshow = () => {
         setIsPlaying(false);
     };
 
+    const handleClose = () => {
+        // Navigate back to client gallery with the access key preserved
+        navigate(`/clientGallery?accessKey=${accessKey}`, { replace: true });
+    };
+
     const handleKeyDown = (e) => {
         if (e.key === 'ArrowLeft') handlePrevious();
         if (e.key === 'ArrowRight') handleNext();
-        if (e.key === 'Escape') navigate(-1);
+        if (e.key === 'Escape') handleClose();
     };
 
     useEffect(() => {
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [handleKeyDown]);
+    }, [handleKeyDown, handleClose]);
 
     if (images.length === 0) {
         return (
             <div className="fixed inset-0 bg-black flex items-center justify-center">
                 <div className="text-center">
                     <p className="text-white">No images to display</p>
-                    <button onClick={() => navigate(-1)} className="mt-4 text-indigo-400">Go Back</button>
+                    <button onClick={handleClose} className="mt-4 text-indigo-400">Go Back</button>
                 </div>
             </div>
         );
@@ -58,7 +62,8 @@ const Slideshow = () => {
             className="fixed inset-0 bg-black z-[200] flex flex-col"
             onMouseMove={() => {
                 setShowControls(true);
-                setTimeout(() => setShowControls(false), 3000);
+                clearTimeout(window.controlsTimeout);
+                window.controlsTimeout = setTimeout(() => setShowControls(false), 3000);
             }}
         >
             {/* Header Controls */}
@@ -69,9 +74,14 @@ const Slideshow = () => {
                         <p className="text-xs text-gray-400">
                             {currentIndex + 1} of {images.length}
                         </p>
+                        {galleryName && (
+                            <p className="text-xs text-indigo-400 mt-1">
+                                {galleryName}
+                            </p>
+                        )}
                     </div>
                     <button
-                        onClick={() => navigate(-1)}
+                        onClick={handleClose}
                         className="text-white hover:bg-white/10 p-2 rounded-full transition-all"
                     >
                         <FiX size={24} />

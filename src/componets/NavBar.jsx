@@ -27,14 +27,16 @@ const NavBar = () => {
 
             {/* Auth & Action Buttons */}
             <div className="flex items-center gap-4 md:gap-8">
+                {/* CLIENT ACCESS - Always visible for all users */}
+                <Link
+                    to="/clientGallery"
+                    className="text-[10px] uppercase font-bold tracking-widest text-indigo-400 hover:text-indigo-300 transition-colors"
+                >
+                    Client Access
+                </Link>
+
                 {isAuthenticated ? (
                     <>
-                        <Link
-                            to="/clientGallery"
-                            className="hidden md:block text-[10px] uppercase font-bold tracking-widest text-gray-400 hover:text-white transition-colors"
-                        >
-                            Client Access
-                        </Link>
                         <button
                             onClick={() => logout()}
                             className="text-[10px] uppercase font-bold tracking-widest text-gray-400 hover:text-white transition-colors"
@@ -65,20 +67,12 @@ const NavBar = () => {
                             </Link>
                         </div>
 
-                        <div className="flex items-center gap-6">
-                            <Link
-                                to="/clientGallery"
-                                className="hidden md:block text-[10px] uppercase font-bold tracking-widest text-gray-400 hover:text-white transition-colors"
-                            >
-                                Client Access
-                            </Link>
-                            <Link
-                                to="/register"
-                                className="bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] uppercase font-bold tracking-widest px-6 py-2 rounded-full transition-all shadow-[0_0_15px_rgba(79,70,229,0.4)] inline-block text-center active:scale-95"
-                            >
-                                Upload
-                            </Link>
-                        </div>
+                        <Link
+                            to="/register"
+                            className="bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] uppercase font-bold tracking-widest px-6 py-2 rounded-full transition-all shadow-[0_0_15px_rgba(79,70,229,0.4)] inline-block text-center active:scale-95"
+                        >
+                            Upload
+                        </Link>
                     </>
                 )}
             </div>
