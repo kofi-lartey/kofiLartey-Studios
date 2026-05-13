@@ -1,109 +1,199 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback
+} from 'react';
+
+import { post, get, del } from '../utils/apiCall';
 import Loader from '../components/Loader';
 
 const AuthContext = createContext(null);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within AuthProvider');
+
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider');
+  }
+
   return context;
 };
 
 export const AuthProvider = ({ children }) => {
+
   const [user, setUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
 
-  // Check for user on initial load
-  useEffect(() => {
-    const checkUser = async () => {
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
-      }
-      setIsLoading(false);
-    };
+  // =========================================================
+  // RESTORE SESSION
+  // =========================================================
 
-    checkUser();
+  const loadUser = useCallback(async () => {
+    const token = localStorage.getItem('authToken');
+
+    if (!token) {
+      setIsInitializing(false);
+      return;
+    }
+
+    try {
+      const response = await get('/users/me');
+      const userData = response?.data || response?.user || response;
+      setUser(userData);
+      setIsAuthenticated(true);
+      setNeedsVerification(userData?.isVerified === false);
+    } catch (error) {
+      console.error('Session restore failed:', error);
+      localStorage.removeItem('authToken');
+      setUser(null);
+      setIsAuthenticated(false);
+      setNeedsVerification(false);
+    } finally {
+      setIsInitializing(false);
+    }
   }, []);
 
-  const login = async (email) => {
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+  useEffect(() => {
+    loadUser();
+  }, [loadUser]);
 
-    const mockUser = {
-      id: '1',
-      email,
-      name: 'Professional Photographer',
-      verified: true,
-    };
-
-    localStorage.setItem('user', JSON.stringify(mockUser));
-    setUser(mockUser);
-    setIsLoading(false);
-    return { success: true };
-  };
+  // =========================================================
+  // REGISTER
+  // =========================================================
 
   const register = async (userData) => {
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    const pendingUser = {
-      ...userData,
-      verified: false,
-    };
-
-    localStorage.setItem('pendingUser', JSON.stringify(pendingUser));
-    setIsLoading(false);
-    return { success: true, requiresVerification: true };
+    setAuthLoading(true);
+    try {
+      const response = await post('/users/register', userData);
+      const authData = response?.data || response;
+      if (!authData?.token) {
+        return response;
+      }
+      localStorage.setItem('authToken', authData.token);
+      setUser(authData.user);
+      setIsAuthenticated(true);
+      setNeedsVerification(authData.user?.isVerified === false);
+      return response;
+    } finally {
+      setAuthLoading(false);
+    }
   };
 
-  const verifyOTP = async () => {
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 400));
+  // =========================================================
+  // LOGIN - FIXED: Don't set authLoading on error without clearing
+  // =========================================================
 
-    const pendingUser = JSON.parse(localStorage.getItem('pendingUser') || '{}');
+  const login = async (email, password) => {
+    setAuthLoading(true);
+    try {
+      const response = await post('/users/login', {
+        email,
+        password
+      });
 
-    localStorage.setItem('isVerified', 'true');
-    localStorage.setItem('verifiedEmail', pendingUser.email);
-    localStorage.removeItem('pendingUser');
+      const authData = response?.data || response;
 
-    setIsLoading(false);
-    return { success: true };
+      if (!authData?.token) {
+        throw new Error('No token received');
+      }
+
+      localStorage.setItem('authToken', authData.token);
+      setUser(authData.user);
+      setIsAuthenticated(true);
+      setNeedsVerification(authData.user?.isVerified === false);
+      return authData;
+    } catch (error) {
+      // Clear any partial state on error
+      localStorage.removeItem('authToken');
+      setUser(null);
+      setIsAuthenticated(false);
+      setNeedsVerification(false);
+      throw error;
+    } finally {
+      setAuthLoading(false);
+    }
   };
 
-  const logout = () => {
-    localStorage.removeItem('user');
-    localStorage.removeItem('pendingUser');
-    setUser(null);
+  // =========================================================
+  // VERIFY OTP
+  // =========================================================
+
+  const verifyOTP = async (otp, email) => {
+    setAuthLoading(true);
+    try {
+      const response = await post('/users/verify-otp', {
+        otp,
+        email
+      });
+      const authData = response?.data || response;
+      if (!authData?.token) {
+        throw new Error('No token received');
+      }
+      localStorage.setItem('authToken', authData.token);
+      setUser(authData.user);
+      setIsAuthenticated(true);
+      setNeedsVerification(false);
+      return authData;
+    } finally {
+      setAuthLoading(false);
+    }
   };
+
+// =========================================================
+   // LOGOUT
+   // =========================================================
+
+   const logout = async () => {
+     try {
+       await post('/users/sign-out');
+     } catch (error) {
+       console.error('Sign out error:', error);
+     } finally {
+       localStorage.removeItem('authToken');
+       setUser(null);
+       setIsAuthenticated(false);
+       setNeedsVerification(false);
+     }
+   };
 
   const value = {
     user,
-    isLoading,
-    isAuthenticated: !!user?.verified,
-    login,
+    isAuthenticated,
+    needsVerification,
+    isLoading: isInitializing,
+    authLoading,
     register,
+    login,
     verifyOTP,
-    logout,
+    logout
   };
+
+  // Only show loader on initial app load, not during auth actions
+  if (isInitializing) {
+    return <GlobalLoader />;
+  }
 
   return (
     <AuthContext.Provider value={value}>
-      <div style={{ position: 'relative', minHeight: '100vh' }}>
-        {children}
-        {isLoading && (
-          <div className="fixed inset-0 bg-[#050505]/95 backdrop-blur-xl flex items-center justify-center z-[9999]">
-            <div className="text-center space-y-6">
-              <Loader size={80} variant="default" />
-              <p className="text-indigo-400 text-sm font-medium tracking-wider uppercase animate-pulse">
-                Authenticating
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
+      {children}
     </AuthContext.Provider>
   );
 };
+
+const GlobalLoader = () => (
+  <div className="fixed inset-0 bg-[#050505]/95 backdrop-blur-xl flex items-center justify-center z-[9999]">
+    <div className="text-center space-y-6">
+      <Loader size={80} variant="default" />
+      <p className="text-indigo-400 text-sm font-medium tracking-wider uppercase animate-pulse">
+        Restoring Session
+      </p>
+    </div>
+  </div>
+);
 
 export default AuthProvider;

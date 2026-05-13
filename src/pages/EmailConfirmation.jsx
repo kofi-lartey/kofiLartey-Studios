@@ -1,31 +1,60 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  FiMail, 
-  FiArrowLeft, 
-  FiClock, 
-  FiCheckCircle, 
-  FiShield, 
-  FiCopy, 
-  FiArrowRight 
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  FiMail,
+  FiArrowLeft,
+  FiClock,
+  FiCheckCircle,
+  FiShield,
 } from 'react-icons/fi';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { post } from '../utils/apiCall';
 import NavBar from '../componets/NavBar';
 import Footer from '../componets/Footer';
-
-const TEST_OTP = '123456';
+import { useAuth } from '../context/AuthContext';
 
 const EmailConfirmation = () => {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [copied, setCopied] = useState(false);
   const [email, setEmail] = useState('');
   const [isVerified, setIsVerified] = useState(false);
   const [error, setError] = useState('');
-  const [timeLeft, setTimeLeft] = useState(300);
+  const [timeLeft, setTimeLeft] = useState(300); // 5 minutes
   const [resendDisabled, setResendDisabled] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(0);
-  
-  const navigate = useNavigate();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resendMessage, setResendMessage] = useState('');
 
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { verifyOTP } = useAuth(); // Use the verifyOTP from context
+  const autoSubmittedRef = useRef(false);
+
+  // Get email from navigation state or localStorage
+  useEffect(() => {
+    const stateEmail = location.state?.email;
+    const token = localStorage.getItem('authToken');
+    
+    if (stateEmail) {
+      setEmail(stateEmail);
+    } else if (token) {
+      // Try to extract email from token if needed
+      // For now, use stored email
+      const storedEmail = localStorage.getItem('confirmEmail');
+      if (storedEmail) {
+        setEmail(storedEmail);
+      } else {
+        setError('No email provided. Please go back and register again.');
+      }
+    } else {
+      const storedEmail = localStorage.getItem('confirmEmail');
+      if (storedEmail) {
+        setEmail(storedEmail);
+      } else {
+        setError('No email provided. Please go back and register again.');
+      }
+    }
+  }, [location.state]);
+
+  // Timer countdown
   useEffect(() => {
     if (timeLeft > 0 && !isVerified) {
       const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
@@ -33,36 +62,28 @@ const EmailConfirmation = () => {
     }
   }, [timeLeft, isVerified]);
 
+  // Redirect after successful verification
+  useEffect(() => {
+    if (isVerified) {
+      const timer = setTimeout(() => {
+        navigate('/dashboard', { replace: true });
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [isVerified, navigate]);
+
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  useEffect(() => {
-    const storedEmail = localStorage.getItem('confirmEmail');
-    if (storedEmail) {
-      setEmail(storedEmail);
-    } else {
-      setEmail('kofiLartey.y12@gmail.com');
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isVerified) {
-      const timer = setTimeout(() => {
-        navigate('/login', { replace: true });
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [isVerified, navigate]);
-
   const handleChange = (index, value) => {
     if (value.length <= 1 && /^\d*$/.test(value)) {
       const newOtp = [...otp];
       newOtp[index] = value;
       setOtp(newOtp);
-      
+
       if (value && index < 5) {
         const nextInput = document.getElementById(`otp-${index + 1}`);
         if (nextInput) nextInput.focus();
@@ -88,64 +109,93 @@ const EmailConfirmation = () => {
       }
     });
     setOtp(newOtp);
-    
+
     const lastFilledIndex = Math.min(digits.length, 5);
     const nextInput = document.getElementById(`otp-${lastFilledIndex}`);
     if (nextInput) nextInput.focus();
   };
 
-  const copyTestOTP = () => {
-    navigator.clipboard.writeText(TEST_OTP);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleResendCode = () => {
+  const handleResendCode = async () => {
     if (resendDisabled) return;
     
-    setResendDisabled(true);
-    setResendCountdown(60);
+    setResendMessage('');
+    setError('');
     
-    const timer = setInterval(() => {
-      setResendCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          setResendDisabled(false);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    
-    setTimeLeft(300);
-    console.log('Resending OTP to:', email);
+    try {
+      // Updated: Call the resend OTP endpoint with email in body
+      const response = await post('/users/resend-otp', { email });
+      
+      if (response.success) {
+        setResendMessage('✅ New verification code sent to your email!');
+        setResendDisabled(true);
+        setResendCountdown(60);
+        setTimeLeft(300); // Reset timer to 5 minutes
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => setResendMessage(''), 3000);
+        
+        const timer = setInterval(() => {
+          setResendCountdown((prev) => {
+            if (prev <= 1) {
+              clearInterval(timer);
+              setResendDisabled(false);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      } else {
+        throw new Error(response.message || 'Failed to resend code');
+      }
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Failed to resend code. Please try again.';
+      setError(msg);
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
+    setResendMessage('');
+    setIsSubmitting(true);
+
     const enteredOtp = otp.join('');
-    
     if (enteredOtp.length !== 6) {
       setError('Please enter all 6 digits');
+      setIsSubmitting(false);
       return;
     }
-    
-    if (enteredOtp === TEST_OTP) {
-      try {
+
+    try {
+      // Use the verifyOTP function from AuthContext which calls /users/verify-otp
+      const response = await verifyOTP(enteredOtp, email);
+      
+      // The verifyOTP function already handles token storage and user state
+      if (response?.data?.token || response?.token) {
         setIsVerified(true);
         localStorage.removeItem('confirmEmail');
-      } catch (err) {
-        setError('Verification failed. Please try again.');
+      } else {
+        throw new Error('Verification succeeded but no token received');
       }
-    } else {
-      setError('Invalid verification code. Please try again.');
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Invalid verification code. Please try again.';
+      setError(msg);
+      // Clear OTP fields on error
+      setOtp(['', '', '', '', '', '']);
+      // Focus first input
+      setTimeout(() => {
+        const firstInput = document.getElementById('otp-0');
+        if (firstInput) firstInput.focus();
+      }, 100);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
+  // Auto-submit when all OTP fields are filled
   useEffect(() => {
-    if (otp.every(digit => digit !== '')) {
+    if (otp.every(digit => digit !== '') && !isSubmitting && !isVerified && !autoSubmittedRef.current) {
+      autoSubmittedRef.current = true;
       handleSubmit({ preventDefault: () => {} });
     }
   }, [otp]);
@@ -163,10 +213,10 @@ const EmailConfirmation = () => {
             </div>
             <h1 className="text-2xl font-bold mb-3 text-green-400">Verified Successfully!</h1>
             <p className="text-gray-500 text-sm mb-6">
-              Your email has been verified. Redirecting to login...
+              Your email has been verified. Redirecting to dashboard...
             </p>
-            <Link to="/login" className="inline-block w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl font-semibold text-sm transition-all">
-              Go to Login
+            <Link to="/dashboard" className="inline-block w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl font-semibold text-sm transition-all">
+              Go to Dashboard
             </Link>
           </div>
         </main>
@@ -178,7 +228,7 @@ const EmailConfirmation = () => {
   return (
     <div className="min-h-screen bg-[#050505] flex flex-col">
       <NavBar />
-      
+
       <main className="flex-1 flex items-center justify-center px-4 py-20">
         <div className="w-full max-w-[420px] mx-auto">
           <div className="bg-[#0A0A0A] border border-white/5 rounded-2xl p-6 md:p-8">
@@ -188,7 +238,7 @@ const EmailConfirmation = () => {
                 <FiMail className="text-indigo-500 text-2xl" />
               </div>
             </div>
-            
+
             {/* Header */}
             <div className="text-center mb-8">
               <h1 className="text-2xl font-bold mb-2">
@@ -201,33 +251,21 @@ const EmailConfirmation = () => {
                 {email}
               </p>
             </div>
-            
+
+            {/* Success Message */}
+            {resendMessage && (
+              <div className="mb-4 p-3 bg-green-600/20 border border-green-500/30 rounded-xl">
+                <p className="text-xs text-green-400 font-medium text-center">{resendMessage}</p>
+              </div>
+            )}
+
             {/* Error Message */}
             {error && (
               <div className="mb-4 p-3 bg-red-600/20 border border-red-500/30 rounded-xl">
                 <p className="text-xs text-red-400 font-medium text-center">{error}</p>
               </div>
             )}
-            
-            {/* Test OTP Helper */}
-            <div className="mb-6 p-3 bg-indigo-600/10 border border-indigo-500/30 rounded-xl">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">
-                    TEST VERIFICATION CODE
-                  </p>
-                  <p className="text-lg font-mono font-bold text-indigo-400">{TEST_OTP}</p>
-                </div>
-                <button 
-                  onClick={copyTestOTP} 
-                  className="flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-400 transition-colors"
-                >
-                  {copied ? <FiCheckCircle size={14} /> : <FiCopy size={14} />}
-                  {copied ? 'Copied!' : 'Copy'}
-                </button>
-              </div>
-            </div>
-            
+
             {/* OTP Form */}
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-3">
@@ -248,20 +286,20 @@ const EmailConfirmation = () => {
                     />
                   ))}
                 </div>
-                
+
                 {/* Timer and Resend */}
                 <div className="flex justify-between items-center px-1">
                   <span className="flex items-center gap-1.5 text-[10px] font-medium text-gray-500 uppercase tracking-wide">
-                    <FiClock className="text-indigo-500" /> 
+                    <FiClock className="text-indigo-500" />
                     EXPIRES IN {formatTime(timeLeft)}
                   </span>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={handleResendCode}
                     disabled={resendDisabled}
                     className={`text-[10px] font-medium uppercase tracking-wide transition-colors ${
-                      resendDisabled 
-                        ? 'text-gray-600 cursor-not-allowed' 
+                      resendDisabled
+                        ? 'text-gray-600 cursor-not-allowed'
                         : 'text-indigo-500 hover:text-indigo-400'
                     }`}
                   >
@@ -269,22 +307,23 @@ const EmailConfirmation = () => {
                   </button>
                 </div>
               </div>
-              
+
               {/* Submit Button */}
-              <button 
-                type="submit" 
-                className="w-full bg-indigo-600 hover:bg-indigo-500 py-3.5 rounded-xl font-semibold text-sm transition-all active:scale-[0.99]"
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full bg-indigo-600 hover:bg-indigo-500 py-3.5 rounded-xl font-semibold text-sm transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Verify Account
+                {isSubmitting ? 'Verifying...' : 'Verify Account'}
               </button>
             </form>
-            
+
             {/* Footer Links */}
             <div className="mt-6 pt-6 border-t border-white/5 flex flex-col items-center gap-4">
               <Link to="/login" className="inline-flex items-center gap-2 text-xs font-medium text-gray-500 hover:text-white transition-colors uppercase tracking-wide">
                 <FiArrowLeft className="text-xs" /> Back to Login
               </Link>
-              
+
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider font-medium text-gray-600">
                   <FiShield className="text-indigo-500 text-[10px]" /> Secure SSL
@@ -297,7 +336,7 @@ const EmailConfirmation = () => {
           </div>
         </div>
       </main>
-      
+
       <Footer />
     </div>
   );

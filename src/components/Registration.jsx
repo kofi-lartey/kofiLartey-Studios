@@ -13,9 +13,8 @@ const Registration = () => {
     password: '',
   });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [passwordErrors, setPasswordErrors] = useState([]);
   const navigate = useNavigate();
 
   // Password validation function
@@ -30,32 +29,13 @@ const Registration = () => {
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
-
-    // Real-time password validation
-    if (name === 'password') {
-      setPasswordErrors(validatePassword(value));
-      // Clear error when user fixes password
-      if (error.includes('Password')) {
-        setError('');
-      }
-    }
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Client-side password validation before submitting
-    const errors = validatePassword(formData.password);
-    if (errors.length > 0) {
-      setError('Please fix password requirements below');
-      setPasswordErrors(errors);
-      return;
-    }
-
     setLoading(true);
-    setError('');
+    setErrorMsg('');
 
     try {
       const response = await post('/users/register', {
@@ -64,46 +44,39 @@ const Registration = () => {
         email: formData.email,
         password: formData.password,
       });
-      
+
       console.log('Registration response:', response);
 
-      // Check if registration was successful
       if (response?.success) {
         // Store email for verification page
         localStorage.setItem('confirmEmail', formData.email);
-        
+
         // If token is returned immediately, store it
         if (response?.data?.token) {
           localStorage.setItem('authToken', response.data.token);
         }
-        
-        // Navigate to email verification page
+
         navigate('/email-confirmation', { state: { email: formData.email } });
       } else {
-        // Server returned an error
-        setError(response?.message || 'Registration failed');
+        setErrorMsg(response?.message || 'Registration failed');
       }
     } catch (err) {
       console.error('Registration error:', err);
-      
-      let message = 'Registration failed. Please try again.';
-      
+      let message = 'Registration failed. ';
       if (err.response?.data?.message) {
         message = err.response.data.message;
-      } else if (err.response?.data?.errors) {
-        // Handle validation errors array
-        message = err.response.data.errors.map(e => e.message || e).join(', ');
       } else if (err.message === 'Network Error') {
-        message = 'Network error – please check your internet connection.';
-      } else if (err.response?.status === 429) {
-        message = 'Too many attempts. Please wait a few minutes.';
+        message = 'Network error – check CORS or backend availability.';
+      } else if (err.response?.status === 404) {
+        message = 'API endpoint not found. Check your connection.';
       }
-      
-      setError(message);
+      setErrorMsg(message);
     } finally {
       setLoading(false);
     }
   };
+
+  const passwordErrors = formData.password ? validatePassword(formData.password) : [];
 
   return (
     <div className="min-h-screen bg-[#050505] flex flex-col font-urbanist text-white selection:bg-indigo-500/30">
@@ -114,15 +87,15 @@ const Registration = () => {
         <div className="absolute bottom-1/4 -right-20 w-64 h-64 bg-blue-600/5 rounded-full blur-[100px] pointer-events-none" />
 
         <div className="w-full max-w-[400px] bg-[#0A0A0A] border border-white/5 rounded-[20px] p-6 md:p-8 shadow-2xl relative z-10 backdrop-blur-md">
-          
+
           <div className="text-center mb-6">
             <h1 className="text-2xl md:text-3xl font-bold tracking-tighter mb-1">Join the Studio</h1>
             <p className="text-gray-500 text-[11px] font-medium tracking-wide">Unlock your professional creative dashboard.</p>
           </div>
 
-          {error && (
+          {errorMsg && (
             <div className="mb-4 p-3 bg-red-600/20 border border-red-500/30 rounded-lg text-red-400 text-xs text-center">
-              {error}
+              {errorMsg}
             </div>
           )}
 
@@ -132,8 +105,8 @@ const Registration = () => {
               <label className="text-[9px] uppercase tracking-[0.15em] font-bold text-gray-500 ml-1">Full Name</label>
               <div className="relative group">
                 <FiUser className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-indigo-500 transition-colors text-sm" />
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
@@ -149,8 +122,8 @@ const Registration = () => {
               <label className="text-[9px] uppercase tracking-[0.15em] font-bold text-gray-500 ml-1">Studio Name</label>
               <div className="relative group">
                 <FiCamera className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-indigo-500 transition-colors text-sm" />
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   name="studioName"
                   value={formData.studioName}
                   onChange={handleChange}
@@ -166,8 +139,8 @@ const Registration = () => {
               <label className="text-[9px] uppercase tracking-[0.15em] font-bold text-gray-500 ml-1">Email Address</label>
               <div className="relative group">
                 <FiMail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-indigo-500 transition-colors text-sm" />
-                <input 
-                  type="email" 
+                <input
+                  type="email"
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
@@ -178,12 +151,12 @@ const Registration = () => {
               </div>
             </div>
 
-            {/* Password */}
+            {/* Password with Toggle */}
             <div className="space-y-1">
               <label className="text-[9px] uppercase tracking-[0.15em] font-bold text-gray-500 ml-1">Password</label>
               <div className="relative group">
                 <FiLock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-indigo-500 transition-colors text-sm" />
-                <input 
+                <input
                   type={showPassword ? "text" : "password"}
                   name="password"
                   value={formData.password}
@@ -193,20 +166,26 @@ const Registration = () => {
                   autoComplete="new-password"
                   className="w-full bg-white/[0.03] border border-white/10 rounded-lg py-2.5 pl-10 pr-10 text-xs focus:outline-none focus:border-indigo-500/50 focus:bg-white/[0.07] transition-all placeholder:text-gray-700"
                 />
+                {/* Eye toggle button */}
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-400 transition-colors"
+                  tabIndex={-1}
                 >
-                  {showPassword ? <FiEyeOff className="text-sm" /> : <FiEye className="text-sm" />}
+                  {showPassword ? (
+                    <FiEyeOff className="text-sm" />
+                  ) : (
+                    <FiEye className="text-sm" />
+                  )}
                 </button>
               </div>
-              
-              {/* Password Requirements Indicator */}
+
+              {/* Password Requirements Checklist */}
               {formData.password && (
-                <div className="mt-2 p-2 bg-white/[0.02] rounded-lg border border-white/5">
-                  <p className="text-[9px] uppercase tracking-wider font-bold text-gray-500 mb-1.5">Password Requirements</p>
-                  <div className="space-y-0.5">
+                <div className="mt-2 p-2.5 bg-white/[0.02] rounded-lg border border-white/5">
+                  <p className="text-[9px] uppercase tracking-wider font-bold text-gray-500 mb-2">Password Requirements</p>
+                  <div className="space-y-1">
                     {[
                       { text: 'At least 8 characters', met: formData.password.length >= 8 },
                       { text: 'One uppercase letter', met: /[A-Z]/.test(formData.password) },
@@ -216,9 +195,9 @@ const Registration = () => {
                     ].map((req, index) => (
                       <div key={index} className="flex items-center gap-1.5 text-[10px]">
                         {req.met ? (
-                          <FiCheckCircle className="text-green-500 text-[10px]" />
+                          <FiCheckCircle className="text-green-500 text-[10px] flex-shrink-0" />
                         ) : (
-                          <div className="w-2.5 h-2.5 rounded-full border border-gray-600" />
+                          <div className="w-2.5 h-2.5 rounded-full border border-gray-600 flex-shrink-0" />
                         )}
                         <span className={req.met ? 'text-green-400' : 'text-gray-600'}>
                           {req.text}
@@ -230,21 +209,12 @@ const Registration = () => {
               )}
             </div>
 
-            {/* Submit Button */}
             <button 
               type="submit" 
-              disabled={loading || (formData.password && validatePassword(formData.password).length > 0)}
+              disabled={loading || passwordErrors.length > 0} 
               className="w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-lg font-bold text-xs transition-all shadow-lg shadow-indigo-600/10 active:scale-[0.99] mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  Creating Account...
-                </span>
-              ) : 'Create Professional Account'}
+              {loading ? 'Creating Account...' : 'Create Professional Account'}
             </button>
           </form>
 

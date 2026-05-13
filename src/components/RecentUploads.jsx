@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FiGrid, FiList, FiMoreVertical, FiTrash2, FiDownload, FiFolder } from 'react-icons/fi';
 import Skeleton from './Skeleton';
+import { get } from '../utils/apiCall';
 
 const RecentUploads = ({ refreshTrigger, selectedGallery }) => {
   const [images, setImages] = useState([]);

@@ -20,19 +20,17 @@ import APIDocumentation from './pages/APIDocumentation';
 import PressKit from './pages/PressKit';
 import { useEffect } from 'react';
 import { useLoading } from './context/LoadingContext';
+import ResendVerification from './pages/ResendVerification';
 
 const NavigationListener = () => {
   const location = useLocation();
   const { finishLoading, isLoading } = useLoading();
 
   useEffect(() => {
-    if (isLoading) {
-      const timer = setTimeout(() => {
-        finishLoading();
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [location.pathname, finishLoading, isLoading]);
+    if (!isLoading) return;
+
+    finishLoading();
+  }, [location.pathname]);
 
   return null;
 };
@@ -49,6 +47,8 @@ function App() {
           <Route path="/register" element={<Registration />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/email-confirmation" element={<EmailConfirmation />} />
+          // Add this route with your other auth routes
+          <Route path="/resend-verification" element={<ResendVerification />} />
 
           {/* Studio Core (Protected) */}
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
