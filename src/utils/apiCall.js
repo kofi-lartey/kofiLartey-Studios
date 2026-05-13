@@ -8,10 +8,7 @@ console.log('📡 Full URL will be:', API_URL + '/users/register');
 
 const apiClient = axios.create({
   baseURL: API_URL,
- withCredentials: true,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  withCredentials: true,
 });
 
 // Interceptor for requests
@@ -51,9 +48,20 @@ export const get = async (url, params = {}) => {
 };
 
 // Generic POST request
-export const post = async (url, data = {}) => {
+export const post = async (url, data = {}, config = {}) => {
   try {
-    const response = await apiClient.post(url, data);
+    const isFormData = data instanceof FormData;
+
+    const response = await apiClient.post(url, data, {
+      ...config,
+      headers: {
+        ...(config.headers || {}),
+        ...(isFormData
+          ? {}
+          : { 'Content-Type': 'application/json' }),
+      },
+    });
+
     return response.data;
   } catch (error) {
     throw error;
@@ -61,9 +69,41 @@ export const post = async (url, data = {}) => {
 };
 
 // Generic PUT request
-export const put = async (url, data = {}) => {
+export const put = async (url, data = {}, config = {}) => {
   try {
-    const response = await apiClient.put(url, data);
+    const isFormData = data instanceof FormData;
+
+    const response = await apiClient.put(url, data, {
+      ...config,
+      headers: {
+        ...(config.headers || {}),
+        ...(isFormData
+          ? {}
+          : { 'Content-Type': 'application/json' }),
+      },
+    });
+
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+// Generic PATCH request (for partial updates)
+export const patch = async (url, data, config = {}) => {
+  try {
+    const isFormData = data instanceof FormData;
+
+    const response = await apiClient.patch(url, data, {
+      ...config,
+      headers: {
+        ...(config.headers || {}),
+        ...(isFormData
+          ? {}
+          : { 'Content-Type': 'application/json' }),
+      },
+    });
+
     return response.data;
   } catch (error) {
     throw error;
