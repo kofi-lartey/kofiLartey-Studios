@@ -55,8 +55,8 @@ const ClientGallery = () => {
         setError("");
 
         try {
-            // ✅ Updated URL structure
-            const response = await get(`/gallery/${galleryID}/validate?accessKey=${key}`);
+            // ✅ Use the correct route: gallery/access/:galleryID?accessKey=XXX
+            const response = await get(`/gallery/access/${galleryID}?accessKey=${key}`);
 
             console.log('🎨 Gallery access response:', response);
 
