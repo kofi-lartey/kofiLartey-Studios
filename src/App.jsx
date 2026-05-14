@@ -63,6 +63,11 @@ function App() {
           {/* Legacy routes - keep for backward compatibility */}
           <Route path="/clientGallery/:galleryName/:galleryId" element={<ClientGallery />} />
           <Route path="/clientGallery/:galleryName/:galleryId/slideshow" element={<Slideshow />} />
+          {/* ✅ Add this route for client gallery access */}
+          <Route path="/clientGallery/:galleryID" element={<ClientGallery />} />
+
+          {/* Optional: Support for slideshow route */}
+          <Route path="/clientGallery/:galleryID/slideshow" element={<Slideshow />} />
 
           {/* Protected Slideshow for authenticated users */}
           <Route path="/slideshow" element={<ProtectedRoute><Slideshow isOpen={true} onClose={() => window.history.back()} /></ProtectedRoute>} />

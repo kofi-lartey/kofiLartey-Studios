@@ -12,16 +12,16 @@ import {
     FiClock,
     FiKey,
     FiLogIn,
-    FiAlertCircle,
-    FiSearch
+    FiAlertCircle
 } from "react-icons/fi";
 import NavBar from "../componets/NavBar";
 import Footer from "../componets/Footer";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import Loader from "../components/Loader";
+import { get } from "../utils/apiCall";
 
 const ClientGallery = () => {
-    const { galleryName, galleryId } = useParams();
+    const { galleryID } = useParams();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const [selectedImage, setSelectedImage] = useState(null);
@@ -33,150 +33,76 @@ const ClientGallery = () => {
     const [galleryData, setGalleryData] = useState(null);
     const [images, setImages] = useState([]);
     const [isFindingGallery, setIsFindingGallery] = useState(true);
-    const [showGallerySelector, setShowGallerySelector] = useState(false);
-    const [availableGalleries, setAvailableGalleries] = useState([]);
+    const [requiresAccessKey, setRequiresAccessKey] = useState(false);
 
-    // Load gallery data when component mounts
-    useEffect(() => {
-        if (galleryName || galleryId) {
-            // We have gallery identifiers from URL
-            loadGalleryByIdentifiers();
-        } else {
-            // No gallery identifiers, show gallery selector
-            setIsFindingGallery(false);
-            setShowGallerySelector(true);
-            loadAvailableGalleries();
-        }
-    }, [galleryName, galleryId]);
-
-    // Auto-authenticate if accessKey is in URL
+    // Check URL for accessKey on mount
     useEffect(() => {
         const urlAccessKey = searchParams.get('accessKey');
-        if (urlAccessKey && galleryData && !isAuthenticated) {
+        if (urlAccessKey) {
             setAccessKey(urlAccessKey);
-            handleAutoAuthenticate(urlAccessKey);
-        }
-    }, [galleryData, searchParams]);
-
-    const loadAvailableGalleries = () => {
-        const galleries = JSON.parse(localStorage.getItem('galleries') || '[]');
-        setAvailableGalleries(galleries);
-    };
-
-    const loadGalleryByIdentifiers = () => {
-        setIsFindingGallery(true);
-        const galleries = JSON.parse(localStorage.getItem('galleries') || '[]');
-
-        console.log('All galleries:', galleries);
-        console.log('Looking for galleryName:', galleryName);
-        console.log('Looking for galleryId:', galleryId);
-
-        let foundGallery = null;
-
-        if (galleryId) {
-            foundGallery = galleries.find(g => g.id === galleryId);
-        }
-
-        if (!foundGallery && galleryName) {
-            foundGallery = galleries.find(g =>
-                g.name.toLowerCase().replace(/\s+/g, "_") === galleryName
-            );
-        }
-
-        console.log('Found gallery:', foundGallery);
-
-        if (foundGallery) {
-            setGalleryData(foundGallery);
-            setError("");
+            validateAndLoadGallery(urlAccessKey);
+        } else if (galleryID) {
+            setIsFindingGallery(false);
+            setRequiresAccessKey(true);
         } else {
-            setError("Gallery not found. Please check the link or contact the gallery owner.");
+            setIsFindingGallery(false);
+            setError("No gallery specified");
         }
+    }, [galleryID]);
 
-        setIsFindingGallery(false);
-    };
-
-    const findGalleryByAccessKey = (key) => {
-        const galleries = JSON.parse(localStorage.getItem('galleries') || '[]');
-        const foundGallery = galleries.find(g => g.accessKey === key.toUpperCase());
-
-        if (foundGallery) {
-            setGalleryData(foundGallery);
-            setIsAuthenticated(true);
-            loadGalleryImages(foundGallery);
-            setError("");
-            setShowGallerySelector(false);
-            return true;
-        } else {
-            setError("Invalid access key. No gallery found with this access key.");
-            return false;
-        }
-    };
-
-    const handleAccessKeyOnlySubmit = (e) => {
-        e.preventDefault();
+    const validateAndLoadGallery = async (key) => {
         setIsLoading(true);
         setError("");
-
-        findGalleryByAccessKey(accessKey);
-
-        setIsLoading(false);
-    };
-
-    const handleSelectGallery = (gallery) => {
-        setGalleryData(gallery);
-        setShowGallerySelector(false);
-        // Don't auto-authenticate, show access key input for this specific gallery
-    };
-
-    const handleAutoAuthenticate = (key) => {
-        if (galleryData && key === galleryData.accessKey) {
-            setIsAuthenticated(true);
-            loadGalleryImages(galleryData);
-            setError("");
-        } else if (key) {
-            setError("Invalid access key in URL");
+        
+        try {
+            // GET request with galleryID from URL params and accessKey from query
+            const response = await get(`/gallery/access/${galleryID}?accessKey=${key}`);
+            
+            console.log('🎨 Gallery access response:', response);
+            
+            if (response.success && response.data) {
+                const gallery = response.data;
+                setGalleryData(gallery);
+                setImages(gallery.images || []);
+                setIsAuthenticated(true);
+                setRequiresAccessKey(false);
+            } else {
+                throw new Error(response.message || "Failed to access gallery");
+            }
+        } catch (error) {
+            console.error('Gallery access error:', error);
+            
+            // Handle 401 Unauthorized (invalid access key)
+            if (error.response?.status === 401) {
+                setError("Invalid access key. Please try again.");
+                setRequiresAccessKey(true);
+            } 
+            // Handle 403 Forbidden (expired)
+            else if (error.response?.status === 403) {
+                setError(error.response?.data?.message || "This gallery link has expired");
+                setRequiresAccessKey(false);
+            }
+            // Handle 404 Not Found
+            else if (error.response?.status === 404) {
+                setError(error.response?.data?.message || "Gallery not found");
+                setRequiresAccessKey(false);
+            }
+            else {
+                setError(error.response?.data?.message || "Failed to load gallery");
+            }
+        } finally {
+            setIsLoading(false);
+            setIsFindingGallery(false);
         }
     };
 
-    const handleAccessKeySubmit = (e) => {
+    const handleAccessKeySubmit = async (e) => {
         e.preventDefault();
-        setIsLoading(true);
-        setError("");
-
-        if (galleryData && accessKey.trim() === galleryData.accessKey) {
-            setIsAuthenticated(true);
-            loadGalleryImages(galleryData);
-            setError("");
-        } else {
-            setError("Invalid access key. Please check and try again.");
+        if (!accessKey.trim()) {
+            setError("Please enter your access key");
+            return;
         }
-        setIsLoading(false);
-    };
-
-    const loadGalleryImages = (gallery = galleryData) => {
-        if (!gallery) return;
-
-        const galleryKey = `gallery_${gallery.id}`;
-        const galleryImages = JSON.parse(localStorage.getItem(galleryKey) || '[]');
-
-        console.log('Loading images for gallery:', galleryKey, galleryImages);
-
-        const formattedImages = galleryImages.map((img, index) => ({
-            id: img.id || index,
-            url: img.url,
-            title: img.name || `Image ${index + 1}`,
-            filename: img.name,
-            res: "7952 × 5304 px",
-            size: `${(img.size / 1024 / 1024).toFixed(1)} MB`,
-            settings: {
-                iso: "100",
-                shutter: "1/250",
-                aperture: "f/1.8"
-            },
-            uploadedAt: img.uploadedAt
-        }));
-
-        setImages(formattedImages);
+        await validateAndLoadGallery(accessKey.trim());
     };
 
     const handleDownload = (e, url, filename) => {
@@ -190,11 +116,17 @@ const ClientGallery = () => {
     };
 
     const handleDownloadAll = () => {
+        if (!galleryData?.downloadPermission) {
+            setError("Download permission not granted for this gallery");
+            setTimeout(() => setError(""), 3000);
+            return;
+        }
+        
         images.forEach((img, index) => {
             setTimeout(() => {
                 const link = document.createElement("a");
                 link.href = img.url;
-                link.download = img.filename;
+                link.download = img.originalName || `image_${index + 1}.jpg`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
@@ -202,118 +134,18 @@ const ClientGallery = () => {
         });
     };
 
-    // In ClientGallery.jsx, update the handleSlideshow function:
     const handleSlideshow = () => {
-        // Navigate to slideshow with all image URLs, gallery name, and access key
-        navigate(`/clientGallery/slideshow?accessKey=${galleryData?.accessKey}`, {
+        navigate(`/clientGallery/${galleryID}/slideshow?accessKey=${accessKey}`, {
             state: {
                 images: images.map(img => img.url),
-                galleryName: galleryData?.name,
-                accessKey: galleryData?.accessKey
+                galleryName: galleryData?.galleryName,
+                galleryID: galleryID
             }
         });
     };
 
-    // Gallery Selector Screen (when no gallery is specified)
-    if (showGallerySelector) {
-        return (
-            <div className="min-h-screen bg-[#050505] flex flex-col font-urbanist font-sans text-white">
-                <NavBar />
-                <main className="flex-1 flex items-center justify-center px-6 py-12 pt-32">
-                    <div className="max-w-2xl w-full">
-                        <div className="text-center mb-8">
-                            <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-2xl">
-                                <FiKey size={34} className="text-white" />
-                            </div>
-                            <h1 className="text-4xl font-bold text-white mb-3">Client Gallery Access</h1>
-                            <p className="text-gray-400 text-sm">
-                                Enter your access key to view your gallery
-                            </p>
-                        </div>
-
-                        {/* Access Key Only Form */}
-                        <form onSubmit={handleAccessKeyOnlySubmit} className="space-y-6 mb-8">
-                            <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
-                                <div className="space-y-5">
-                                    <div>
-                                        <label className="block text-[11px] uppercase text-gray-500 font-bold tracking-wider mb-2">
-                                            ACCESS KEY
-                                        </label>
-                                        <div className="relative">
-                                            <FiKey className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                                            <input
-                                                type="text"
-                                                value={accessKey}
-                                                onChange={(e) => setAccessKey(e.target.value.toUpperCase())}
-                                                placeholder="Enter your access key (e.g., 7H2K-XP91)"
-                                                className="w-full bg-black/40 border border-white/10 rounded-xl py-3.5 pl-11 pr-4 text-sm text-white placeholder:text-gray-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
-                                                autoFocus
-                                            />
-                                        </div>
-                                        <p className="text-[10px] text-gray-600 mt-2">
-                                            Enter the access key that was provided to you to view your gallery.
-                                        </p>
-                                    </div>
-
-                                    {error && (
-                                        <div className="p-3.5 bg-red-600/10 border border-red-500/20 rounded-xl flex items-center gap-2">
-                                            <FiAlertCircle className="text-red-400 flex-shrink-0" size={14} />
-                                            <span className="text-[11px] text-red-400 font-bold uppercase tracking-wider">{error}</span>
-                                        </div>
-                                    )}
-
-                                    <button
-                                        type="submit"
-                                        disabled={isLoading}
-                                        className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white py-3.5 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl shadow-indigo-600/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        {isLoading ? (
-                                            <Loader size={20} variant="minimal" />
-                                        ) : (
-                                            <>
-                                                <FiLogIn size={14} />
-                                                ACCESS GALLERY
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
-                        </form>
-
-                        {/* Optional: Show available galleries (for testing/debug) */}
-                        {availableGalleries.length > 0 && (
-                            <div className="mt-8">
-                                <div className="relative">
-                                    <div className="absolute inset-0 flex items-center">
-                                        <div className="w-full border-t border-white/10"></div>
-                                    </div>
-                                    {/* <div className="relative flex justify-center text-xs">
-                                        <span className="bg-[#050505] px-3 text-gray-600">OR SELECT A GALLERY (DEMO)</span>
-                                    </div> */}
-                                </div>
-                                {/* <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    {availableGalleries.map((gallery) => (
-                                        <button
-                                            key={gallery.id}
-                                            onClick={() => handleSelectGallery(gallery)}
-                                            className="p-4 bg-white/[0.03] border border-white/10 rounded-xl text-left hover:border-indigo-500/30 hover:bg-white/[0.05] transition-all"
-                                        >
-                                            <p className="font-bold text-sm">{gallery.name}</p>
-                                            <p className="text-[10px] text-gray-500 mt-1">Access Key: {gallery.accessKey}</p>
-                                        </button>
-                                    ))}
-                                </div> */}
-                            </div>
-                        )}
-                    </div>
-                </main>
-                <Footer />
-            </div>
-        );
-    }
-
     // Loading state
-    if (isFindingGallery) {
+    if (isFindingGallery || isLoading) {
         return (
             <div className="min-h-screen bg-[#050505] flex flex-col font-urbanist font-sans text-white">
                 <NavBar />
@@ -328,8 +160,8 @@ const ClientGallery = () => {
         );
     }
 
-    // If gallery not found
-    if (!galleryData && error && !showGallerySelector) {
+    // Gallery not found error
+    if (error && !isAuthenticated && !requiresAccessKey) {
         return (
             <div className="min-h-screen bg-[#050505] flex flex-col font-urbanist font-sans text-white">
                 <NavBar />
@@ -340,24 +172,12 @@ const ClientGallery = () => {
                         </div>
                         <h2 className="text-2xl font-bold text-white mb-2">Gallery Not Found</h2>
                         <p className="text-gray-500 text-sm mb-6">{error}</p>
-                        <div className="space-y-3">
-                            <button
-                                onClick={() => {
-                                    setShowGallerySelector(true);
-                                    setError("");
-                                    loadAvailableGalleries();
-                                }}
-                                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-medium transition-colors inline-block mr-3"
-                            >
-                                Try Another Access Key
-                            </button>
-                            <button
-                                onClick={() => navigate('/')}
-                                className="px-6 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors inline-block"
-                            >
-                                Return to Home
-                            </button>
-                        </div>
+                        <button
+                            onClick={() => navigate('/')}
+                            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-medium transition-colors"
+                        >
+                            Return to Home
+                        </button>
                     </div>
                 </main>
                 <Footer />
@@ -365,8 +185,8 @@ const ClientGallery = () => {
         );
     }
 
-    // Access Key Login Screen (for specific gallery)
-    if (!isAuthenticated && galleryData) {
+    // Access Key Required Screen
+    if (requiresAccessKey && !isAuthenticated) {
         return (
             <div className="min-h-screen bg-[#050505] flex flex-col font-urbanist font-sans text-white">
                 <NavBar />
@@ -379,7 +199,7 @@ const ClientGallery = () => {
                             </div>
                             <h1 className="text-4xl font-bold text-white mb-3">Access Required</h1>
                             <p className="text-gray-400 text-sm">
-                                Please enter the access key to view "{galleryData?.name || 'this gallery'}"
+                                Please enter your access key to view this gallery
                             </p>
                         </div>
 
@@ -396,7 +216,7 @@ const ClientGallery = () => {
                                                 type="text"
                                                 value={accessKey}
                                                 onChange={(e) => setAccessKey(e.target.value.toUpperCase())}
-                                                placeholder="Enter your access key (e.g., 7H2K-XP91)"
+                                                placeholder="Enter your access key"
                                                 className="w-full bg-black/40 border border-white/10 rounded-xl py-3.5 pl-11 pr-4 text-sm text-white placeholder:text-gray-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
                                                 autoFocus
                                             />
@@ -418,43 +238,18 @@ const ClientGallery = () => {
                                         disabled={isLoading}
                                         className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white py-3.5 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl shadow-indigo-600/20 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        {isLoading ? (
-                                            <Loader size={20} variant="minimal" />
-                                        ) : (
-                                            <>
-                                                <FiLogIn size={14} />
-                                                ACCESS GALLERY
-                                            </>
-                                        )}
+                                        <FiLogIn size={14} />
+                                        ACCESS GALLERY
                                     </button>
                                 </div>
                             </div>
-
-                            <div className="text-center">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setShowGallerySelector(true);
-                                        setGalleryData(null);
-                                        setAccessKey("");
-                                    }}
-                                    className="text-[10px] text-gray-500 hover:text-gray-400 transition-colors"
-                                >
-                                    ← Use a different access key
-                                </button>
-                            </div>
-
-                            {galleryData && (
-                                <div className="text-center space-y-2">
-                                    <p className="text-[10px] text-gray-600 uppercase tracking-wider">
-                                        GALLERY: {galleryData.name.toUpperCase()}
-                                    </p>
-                                    <p className="text-[9px] text-gray-700">
-                                        Created: {new Date(galleryData.createdAt).toLocaleDateString()}
-                                    </p>
-                                </div>
-                            )}
                         </form>
+
+                        <div className="text-center mt-6">
+                            <p className="text-[9px] text-gray-600">
+                                Gallery ID: {galleryID}
+                            </p>
+                        </div>
                     </div>
                 </main>
 
@@ -466,10 +261,6 @@ const ClientGallery = () => {
     // Authenticated Gallery View
     return (
         <div className="min-h-screen bg-[#050505] flex flex-col font-urbanist font-sans text-white selection:bg-indigo-500/30">
-            <style>
-                {`@import url('https://fonts.googleapis.com/css2?family=Urbanist:wght@400;700;900&display=swap');`}
-            </style>
-
             <NavBar />
 
             <main className="flex-1 max-w-7xl w-full mx-auto px-6 pt-32 pb-12 space-y-12">
@@ -480,25 +271,27 @@ const ClientGallery = () => {
                             <span className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400">✨ Private Collection</span>
                         </div>
                         <h1 className="text-5xl md:text-7xl font-bold tracking-tighter text-white">
-                            {galleryData?.name || "Client Gallery"}
+                            {galleryData?.galleryName || "Client Gallery"}
                         </h1>
                         <div className="flex flex-wrap items-center gap-6 text-gray-400 text-xs font-bold uppercase tracking-widest">
-                            <span className="flex items-center gap-2"><FiCamera className="text-indigo-500" /> kofiLartey Studio</span>
+                            <span className="flex items-center gap-2"><FiCamera className="text-indigo-500" /> {galleryData?.studioName || "kofiLartey Studio"}</span>
                             <span className="flex items-center gap-2"><FiClock className="text-indigo-500" /> {images.length} High-Resolution Captures</span>
                         </div>
                     </div>
 
                     <div className="flex flex-col items-end gap-3">
-                        <button
-                            onClick={handleDownloadAll}
-                            disabled={images.length === 0}
-                            className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-xl font-bold text-xs flex items-center gap-3 transition-all shadow-xl shadow-indigo-600/20 active:scale-95 w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            <FiDownload className="text-sm" /> Download All Gallery
-                        </button>
-                        {galleryData?.expiration && galleryData.expiration !== "never" && (
-                            <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">
-                                Access expires: {galleryData.expiration}
+                        {galleryData?.downloadPermission && (
+                            <button
+                                onClick={handleDownloadAll}
+                                disabled={images.length === 0}
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-xl font-bold text-xs flex items-center gap-3 transition-all shadow-xl shadow-indigo-600/20 active:scale-95 w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <FiDownload className="text-sm" /> Download All Gallery
+                            </button>
+                        )}
+                        {galleryData?.expirationPeriod && galleryData.expirationPeriod !== "Never Expire" && galleryData.expiresAt && (
+                            <span className="text-[9px] text-amber-500/70 font-bold uppercase tracking-widest">
+                                Access expires: {new Date(galleryData.expiresAt).toLocaleDateString()}
                             </span>
                         )}
                     </div>
@@ -512,18 +305,6 @@ const ClientGallery = () => {
                         className="flex items-center gap-2 px-6 py-2 bg-white/5 border border-white/10 rounded-full text-[10px] uppercase font-bold tracking-widest text-gray-300 hover:text-white hover:bg-indigo-600/20 hover:border-indigo-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <FiPlay size={12} className="text-indigo-400" /> Slideshow Mode
-                    </button>
-                    <button
-                        onClick={() => {
-                            setGalleryData(null);
-                            setIsAuthenticated(false);
-                            setShowGallerySelector(true);
-                            setImages([]);
-                            loadAvailableGalleries();
-                        }}
-                        className="flex items-center gap-2 px-6 py-2 bg-white/5 border border-white/10 rounded-full text-[10px] uppercase font-bold tracking-widest text-gray-300 hover:text-white transition-colors"
-                    >
-                        <FiRefreshCw size={12} className="text-indigo-400" /> Change Gallery
                     </button>
                 </div>
 
@@ -540,26 +321,29 @@ const ClientGallery = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {images.map((img) => (
                             <div
-                                key={img.id}
+                                key={img.imageId}
                                 className="group relative aspect-square bg-white/5 rounded-2xl overflow-hidden cursor-zoom-in border border-white/5 transition-all duration-500 hover:border-indigo-500/30"
                                 onClick={() => setSelectedImage(img)}
                             >
                                 <img
                                     src={img.url}
-                                    alt={img.title}
+                                    alt={img.imageName}
                                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                                    loading="lazy"
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-between p-6">
                                     <div className="flex justify-end">
-                                        <button
-                                            onClick={(e) => handleDownload(e, img.url, img.filename)}
-                                            className="p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-indigo-600 transition-all border border-white/10 shadow-xl"
-                                        >
-                                            <FiDownload size={18} />
-                                        </button>
+                                        {galleryData?.downloadPermission && (
+                                            <button
+                                                onClick={(e) => handleDownload(e, img.url, img.originalName)}
+                                                className="p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-indigo-600 transition-all border border-white/10 shadow-xl"
+                                            >
+                                                <FiDownload size={18} />
+                                            </button>
+                                        )}
                                     </div>
                                     <div className="flex items-center justify-between">
-                                        <p className="text-white font-bold text-sm tracking-tight">{img.title}</p>
+                                        <p className="text-white font-bold text-sm tracking-tight">{img.imageName || "Image"}</p>
                                         <FiMaximize2 className="text-white/70" />
                                     </div>
                                 </div>
@@ -580,7 +364,7 @@ const ClientGallery = () => {
                                 <FiX size={24} />
                             </button>
                             <div className="hidden md:block">
-                                <h2 className="text-white font-bold text-sm">{galleryData?.name || "kofiLartey Studio"}</h2>
+                                <h2 className="text-white font-bold text-sm">{galleryData?.galleryName || "kofiLartey Studio"}</h2>
                                 <p className="text-[9px] text-gray-400 uppercase tracking-widest font-black">Client Gallery Access</p>
                             </div>
                         </div>
@@ -588,16 +372,12 @@ const ClientGallery = () => {
                         <div className="flex items-center gap-3">
                             <div className="hidden sm:flex bg-white/5 border border-white/10 rounded-lg px-4 py-2 divide-x divide-white/10">
                                 <div className="pr-4 text-center">
-                                    <p className="text-[8px] text-gray-500 uppercase font-black">ISO</p>
-                                    <p className="text-[10px] text-white font-mono">{selectedImage.settings.iso}</p>
-                                </div>
-                                <div className="px-4 text-center">
-                                    <p className="text-[8px] text-gray-500 uppercase font-black">Shutter</p>
-                                    <p className="text-[10px] text-white font-mono">{selectedImage.settings.shutter}</p>
+                                    <p className="text-[8px] text-gray-500 uppercase font-black">Size</p>
+                                    <p className="text-[10px] text-white font-mono">{selectedImage.sizeFormatted || "N/A"}</p>
                                 </div>
                                 <div className="pl-4 text-center">
-                                    <p className="text-[8px] text-gray-500 uppercase font-black">Aperture</p>
-                                    <p className="text-[10px] text-white font-mono">{selectedImage.settings.aperture}</p>
+                                    <p className="text-[8px] text-gray-500 uppercase font-black">Type</p>
+                                    <p className="text-[10px] text-white font-mono">{selectedImage.mimeType?.split('/')[1] || "N/A"}</p>
                                 </div>
                             </div>
                             <button onClick={() => setIsFavorite(!isFavorite)} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg border transition-all ${isFavorite ? 'bg-red-600 border-red-600 text-white' : 'bg-white/5 border-white/10 text-white hover:bg-white/10'}`}>
@@ -608,18 +388,18 @@ const ClientGallery = () => {
                     </div>
 
                     <div className="flex-1 relative flex items-center justify-center p-4">
-                        <img src={selectedImage.url} className="max-w-full max-h-[80vh] object-contain shadow-2xl" alt={selectedImage.title} />
+                        <img src={selectedImage.url} className="max-w-full max-h-[80vh] object-contain shadow-2xl" alt={selectedImage.imageName} />
                     </div>
 
                     <div className="flex items-center justify-between px-8 py-6 bg-black border-t border-white/5 z-10">
                         <div className="flex gap-12">
                             <div>
                                 <p className="text-[8px] text-gray-500 uppercase font-black mb-1">Filename</p>
-                                <p className="text-[10px] text-white font-mono">{selectedImage.filename}</p>
+                                <p className="text-[10px] text-white font-mono">{selectedImage.originalName || selectedImage.imageName}</p>
                             </div>
-                            <div className="hidden sm:block">
-                                <p className="text-[8px] text-gray-500 uppercase font-black mb-1">Resolution</p>
-                                <p className="text-[10px] text-white font-mono">{selectedImage.res}</p>
+                            <div>
+                                <p className="text-[8px] text-gray-500 uppercase font-black mb-1">Size</p>
+                                <p className="text-[10px] text-white font-mono">{selectedImage.sizeFormatted}</p>
                             </div>
                         </div>
                         <div className="flex items-center gap-4">
