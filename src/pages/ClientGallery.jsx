@@ -17,7 +17,7 @@ import NavBar from "../componets/NavBar";
 import Footer from "../componets/Footer";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Loader from "../components/Loader";
-import { get } from "../utils/apiCall";
+import { post } from "../utils/apiCall";  // ✅ Change from get to post
 
 const ClientGallery = () => {
     const navigate = useNavigate();
@@ -48,17 +48,17 @@ const ClientGallery = () => {
     const validateAndLoadGallery = async (key) => {
         setIsLoading(true);
         setError("");
-        
+
         try {
-            // ✅ Using the new /gallery/public endpoint with accessKey
-            const response = await get(`/gallery/public?accessKey=${key}`);
-            
+            // ✅ Using POST for /gallery/public endpoint
+            const response = await post('/gallery/public', { accessKey: key });
+
             console.log('🎨 Gallery access response:', response);
-            
+
             if (response.success && response.data) {
                 const gallery = response.data;
                 setGalleryData(gallery);
-                // ✅ Set images from the response - using imageUrl field
+                // Set images from the response - using imageUrl field
                 setImages(gallery.images || []);
                 setIsAuthenticated(true);
                 setRequiresAccessKey(false);
@@ -67,7 +67,7 @@ const ClientGallery = () => {
             }
         } catch (error) {
             console.error('Gallery access error:', error);
-            
+
             if (error.response?.status === 404) {
                 setError("No gallery found with this access key. Please check and try again.");
             } else if (error.response?.status === 403) {
@@ -107,7 +107,7 @@ const ClientGallery = () => {
             setTimeout(() => setError(""), 3000);
             return;
         }
-        
+
         images.forEach((img, index) => {
             setTimeout(() => {
                 const link = document.createElement("a");
