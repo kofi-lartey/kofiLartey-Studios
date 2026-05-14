@@ -1,11 +1,15 @@
 import { useState, useEffect } from "react";
 import { FiX, FiChevronLeft, FiChevronRight, FiPlay, FiPause } from "react-icons/fi";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const Slideshow = () => {
-    const location = useLocation();
     const navigate = useNavigate();
-    const { images, galleryName, accessKey } = location.state || { images: [], galleryName: '', accessKey: '' };
+    const location = useLocation();
+    const { images, galleryName, returnPath } = location.state || { 
+        images: [], 
+        galleryName: '', 
+        returnPath: '/clientGallery' 
+    };
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isPlaying, setIsPlaying] = useState(true);
     const [showControls, setShowControls] = useState(true);
@@ -30,19 +34,9 @@ const Slideshow = () => {
         setIsPlaying(false);
     };
 
-    // In Slideshow.jsx - Add a proper back button/close handler
     const handleClose = () => {
-        const galleryID = location.state?.galleryID;
-        const accessKey = location.state?.accessKey;
-
-        // Navigate back to the specific gallery with the access key
-        if (galleryID && accessKey) {
-            navigate(`/clientGallery/${galleryID}?accessKey=${accessKey}`);
-        } else if (galleryID) {
-            navigate(`/clientGallery/${galleryID}`);
-        } else {
-            navigate(-1); // Fallback to previous page
-        }
+        // Navigate back without reloading the page
+        navigate(-1);
     };
 
     const handleKeyDown = (e) => {
@@ -54,7 +48,7 @@ const Slideshow = () => {
     useEffect(() => {
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [handleKeyDown, handleClose]);
+    }, [handleKeyDown]);
 
     if (images.length === 0) {
         return (

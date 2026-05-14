@@ -11,13 +11,134 @@ import {
     FiClock,
     FiKey,
     FiLogIn,
-    FiAlertCircle
+    FiAlertCircle,
+    FiChevronLeft,
+    FiChevronRight,
+    FiPause
 } from "react-icons/fi";
 import NavBar from "../componets/NavBar";
 import Footer from "../componets/Footer";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Loader from "../components/Loader";
-import { post } from "../utils/apiCall";  // ✅ Change from get to post
+import { post } from "../utils/apiCall";
+
+// Slideshow Modal Component
+const SlideshowModal = ({ images, galleryName, onClose, initialIndex = 0 }) => {
+    const [currentIndex, setCurrentIndex] = useState(initialIndex);
+    const [isPlaying, setIsPlaying] = useState(true);
+    const [showControls, setShowControls] = useState(true);
+
+    useEffect(() => {
+        let interval;
+        if (isPlaying && images.length > 0) {
+            interval = setInterval(() => {
+                setCurrentIndex((prev) => (prev + 1) % images.length);
+            }, 3000);
+        }
+        return () => clearInterval(interval);
+    }, [isPlaying, images.length]);
+
+    const handlePrevious = () => {
+        setCurrentIndex((prev) => (prev - 1 + images.length) % images.length);
+        setIsPlaying(false);
+    };
+
+    const handleNext = () => {
+        setCurrentIndex((prev) => (prev + 1) % images.length);
+        setIsPlaying(false);
+    };
+
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'ArrowLeft') handlePrevious();
+            if (e.key === 'ArrowRight') handleNext();
+            if (e.key === 'Escape') onClose();
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handlePrevious, handleNext, onClose]);
+
+    let controlsTimeout;
+
+    return (
+        <div
+            className="fixed inset-0 bg-black z-[200] flex flex-col"
+            onMouseMove={() => {
+                setShowControls(true);
+                clearTimeout(controlsTimeout);
+                controlsTimeout = setTimeout(() => setShowControls(false), 3000);
+            }}
+        >
+            {/* Header Controls */}
+            <div className={`absolute top-0 left-0 right-0 p-6 bg-gradient-to-b from-black/80 to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+                <div className="flex justify-between items-center">
+                    <div className="text-white">
+                        <p className="text-sm font-medium">Slideshow Mode</p>
+                        <p className="text-xs text-gray-400">
+                            {currentIndex + 1} of {images.length}
+                        </p>
+                        {galleryName && (
+                            <p className="text-xs text-indigo-400 mt-1">
+                                {galleryName}
+                            </p>
+                        )}
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="text-white hover:bg-white/10 p-2 rounded-full transition-all"
+                    >
+                        <FiX size={24} />
+                    </button>
+                </div>
+            </div>
+
+            {/* Main Image */}
+            <div className="flex-1 flex items-center justify-center p-4">
+                <img
+                    src={images[currentIndex]}
+                    alt={`Slide ${currentIndex + 1}`}
+                    className="max-w-full max-h-[85vh] object-contain shadow-2xl"
+                />
+            </div>
+
+            {/* Bottom Controls */}
+            <div className={`absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+                <div className="flex items-center justify-center gap-6">
+                    <button
+                        onClick={handlePrevious}
+                        className="p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all"
+                    >
+                        <FiChevronLeft size={24} />
+                    </button>
+
+                    <button
+                        onClick={() => setIsPlaying(!isPlaying)}
+                        className="p-4 bg-indigo-600 hover:bg-indigo-500 rounded-full text-white transition-all shadow-xl"
+                    >
+                        {isPlaying ? <FiPause size={24} /> : <FiPlay size={24} />}
+                    </button>
+
+                    <button
+                        onClick={handleNext}
+                        className="p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all"
+                    >
+                        <FiChevronRight size={24} />
+                    </button>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="mt-6 max-w-2xl mx-auto">
+                    <div className="h-1 bg-white/20 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-indigo-500 transition-all duration-300"
+                            style={{ width: `${((currentIndex + 1) / images.length) * 100}%` }}
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const ClientGallery = () => {
     const navigate = useNavigate();
@@ -32,6 +153,8 @@ const ClientGallery = () => {
     const [images, setImages] = useState([]);
     const [isFindingGallery, setIsFindingGallery] = useState(true);
     const [requiresAccessKey, setRequiresAccessKey] = useState(true);
+    const [showSlideshow, setShowSlideshow] = useState(false);
+    const [slideshowStartIndex, setSlideshowStartIndex] = useState(0);
 
     // Check URL for accessKey on mount
     useEffect(() => {
@@ -50,7 +173,6 @@ const ClientGallery = () => {
         setError("");
 
         try {
-            // ✅ Using POST for /gallery/public endpoint
             const response = await post('/gallery/public', { accessKey: key });
 
             console.log('🎨 Gallery access response:', response);
@@ -58,7 +180,6 @@ const ClientGallery = () => {
             if (response.success && response.data) {
                 const gallery = response.data;
                 setGalleryData(gallery);
-                // Set images from the response - using imageUrl field
                 setImages(gallery.images || []);
                 setIsAuthenticated(true);
                 setRequiresAccessKey(false);
@@ -121,14 +242,9 @@ const ClientGallery = () => {
     };
 
     const handleSlideshow = () => {
-        const currentAccessKey = accessKey;
-        navigate(`/clientGallery/slideshow?accessKey=${currentAccessKey}`, {
-            state: {
-                images: images.map(img => img.imageUrl),
-                galleryName: galleryData?.galleryName,
-                accessKey: currentAccessKey
-            }
-        });
+        if (images.length === 0) return;
+        setSlideshowStartIndex(0);
+        setShowSlideshow(true);
     };
 
     // Loading state
@@ -300,9 +416,9 @@ const ClientGallery = () => {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {images.map((img) => (
+                        {images.map((img, index) => (
                             <div
-                                key={img.imageId}
+                                key={img.imageId || index}
                                 className="group relative aspect-square bg-white/5 rounded-2xl overflow-hidden cursor-zoom-in border border-white/5 transition-all duration-500 hover:border-indigo-500/30"
                                 onClick={() => setSelectedImage(img)}
                             >
@@ -335,6 +451,16 @@ const ClientGallery = () => {
             </main>
 
             <Footer />
+
+            {/* Slideshow Modal */}
+            {showSlideshow && (
+                <SlideshowModal
+                    images={images.map(img => img.imageUrl)}
+                    galleryName={galleryData?.galleryName}
+                    onClose={() => setShowSlideshow(false)}
+                    initialIndex={slideshowStartIndex}
+                />
+            )}
 
             {/* VIEWER OVERLAY */}
             {selectedImage && (
