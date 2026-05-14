@@ -53,13 +53,13 @@ const ClientGallery = () => {
     const validateAndLoadGallery = async (key) => {
         setIsLoading(true);
         setError("");
-        
+
         try {
-            // GET request with galleryID from URL params and accessKey from query
-            const response = await get(`/gallery/access/${galleryID}?accessKey=${key}`);
-            
+            // ✅ Updated URL structure
+            const response = await get(`/gallery/${galleryID}/validate?accessKey=${key}`);
+
             console.log('🎨 Gallery access response:', response);
-            
+
             if (response.success && response.data) {
                 const gallery = response.data;
                 setGalleryData(gallery);
@@ -71,23 +71,16 @@ const ClientGallery = () => {
             }
         } catch (error) {
             console.error('Gallery access error:', error);
-            
-            // Handle 401 Unauthorized (invalid access key)
+
+            // Handle different error statuses
             if (error.response?.status === 401) {
                 setError("Invalid access key. Please try again.");
                 setRequiresAccessKey(true);
-            } 
-            // Handle 403 Forbidden (expired)
-            else if (error.response?.status === 403) {
+            } else if (error.response?.status === 403) {
                 setError(error.response?.data?.message || "This gallery link has expired");
-                setRequiresAccessKey(false);
-            }
-            // Handle 404 Not Found
-            else if (error.response?.status === 404) {
+            } else if (error.response?.status === 404) {
                 setError(error.response?.data?.message || "Gallery not found");
-                setRequiresAccessKey(false);
-            }
-            else {
+            } else {
                 setError(error.response?.data?.message || "Failed to load gallery");
             }
         } finally {
@@ -121,7 +114,7 @@ const ClientGallery = () => {
             setTimeout(() => setError(""), 3000);
             return;
         }
-        
+
         images.forEach((img, index) => {
             setTimeout(() => {
                 const link = document.createElement("a");
