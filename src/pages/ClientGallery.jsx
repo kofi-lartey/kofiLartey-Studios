@@ -4,7 +4,6 @@ import {
     FiMaximize2,
     FiX,
     FiPlay,
-    FiRefreshCw,
     FiHeart,
     FiShare2,
     FiInfo,
@@ -53,16 +52,17 @@ const ClientGallery = () => {
     const validateAndLoadGallery = async (key) => {
         setIsLoading(true);
         setError("");
-
+        
         try {
-            // ✅ Use the correct route: gallery/access/:galleryID?accessKey=XXX
+            // ✅ Using the correct route: gallery/access/:galleryID?accessKey=XXX
             const response = await get(`/gallery/access/${galleryID}?accessKey=${key}`);
-
+            
             console.log('🎨 Gallery access response:', response);
-
+            
             if (response.success && response.data) {
                 const gallery = response.data;
                 setGalleryData(gallery);
+                // ✅ Set images from the response
                 setImages(gallery.images || []);
                 setIsAuthenticated(true);
                 setRequiresAccessKey(false);
@@ -71,15 +71,17 @@ const ClientGallery = () => {
             }
         } catch (error) {
             console.error('Gallery access error:', error);
-
+            
             // Handle different error statuses
             if (error.response?.status === 401) {
                 setError("Invalid access key. Please try again.");
                 setRequiresAccessKey(true);
             } else if (error.response?.status === 403) {
                 setError(error.response?.data?.message || "This gallery link has expired");
+                setIsFindingGallery(false);
             } else if (error.response?.status === 404) {
                 setError(error.response?.data?.message || "Gallery not found");
+                setIsFindingGallery(false);
             } else {
                 setError(error.response?.data?.message || "Failed to load gallery");
             }
@@ -114,7 +116,7 @@ const ClientGallery = () => {
             setTimeout(() => setError(""), 3000);
             return;
         }
-
+        
         images.forEach((img, index) => {
             setTimeout(() => {
                 const link = document.createElement("a");
