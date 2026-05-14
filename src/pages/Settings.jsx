@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { FiEye, FiEyeOff, FiUser, FiLock, FiEdit2, FiTrash2, FiShield, FiSave, FiAlertCircle, FiCheckCircle, FiInfo, FiUpload, FiX } from "react-icons/fi";
+import { FiEye, FiEyeOff, FiUser, FiLock, FiEdit2, FiTrash2, FiShield, FiSave, FiAlertCircle, FiCheckCircle, FiInfo, FiUpload, FiX, FiMenu } from "react-icons/fi";
 import Sidebar from "../componets/Sidebar";
 import DashboardNavbar from "../componets/DashboardNavbar";
 import Footer from "../componets/Footer";
@@ -7,8 +7,11 @@ import Loader from "../components/Loader";
 import { get, patch, put } from "../utils/apiCall";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { useMobileMenu } from "../hooks/useMobileMenu";
+import SkipLink from "../components/SkipLink";
 
 const Settings = () => {
+  const mobileMenu = useMobileMenu();
   const [profile, setProfile] = useState({
     name: "",
     email: "",
@@ -410,34 +413,54 @@ const Settings = () => {
     });
   };
 
-  if (fetching) {
-    return (
-      <div className="min-h-screen bg-[#050505] flex">
-        <Sidebar />
-        <main className="flex-1 ml-64 flex items-center justify-center">
-          <div className="text-center">
-            <Loader size={48} variant="default" />
-            <p className="text-gray-500 text-sm mt-4">Loading profile...</p>
-          </div>
-        </main>
-      </div>
-    );
-  }
+   if (fetching) {
+     return (
+       <div className="min-h-screen bg-[#050505] flex">
+         {/* Skip to main content link for accessibility */}
+         <SkipLink />
+         {/* Sidebar with mobile menu */}
+         <Sidebar 
+           isMobileMenuOpen={mobileMenu.isOpen} 
+           closeMobileMenu={mobileMenu.close} 
+         />
+         <main 
+           id="main-content"
+           className={`flex-1 flex items-center justify-center transition-all duration-300 ${mobileMenu.isOpen ? 'ml-0' : ''} lg:ml-64`}
+           tabIndex={-1}
+         >
+           <div className="text-center">
+             <Loader size={48} variant="default" />
+             <p className="text-gray-500 text-xs md:text-sm mt-4">Loading profile...</p>
+           </div>
+         </main>
+       </div>
+     );
+   }
 
-  return (
-    <div className="min-h-screen bg-[#050505] flex">
-      <Sidebar />
+   return (
+     <div className="min-h-screen bg-[#050505] flex">
+       {/* Skip to main content link for accessibility */}
+       <SkipLink />
 
-      <main className="flex-1 ml-64 flex flex-col">
-        <DashboardNavbar />
+       <Sidebar 
+         isMobileMenuOpen={mobileMenu.isOpen} 
+         closeMobileMenu={mobileMenu.close} 
+       />
 
-        <div className="p-8 max-w-5xl w-full mx-auto space-y-12">
-          <header>
-            <h2 className="text-4xl font-bold text-white tracking-tight">Account Settings</h2>
-            <p className="text-gray-500 text-sm mt-3">
-              Manage your photography studio's global configuration, security protocols, and visual identity.
-            </p>
-          </header>
+       <main 
+         id="main-content"
+         className={`flex-1 flex flex-col transition-all duration-300 ${mobileMenu.isOpen ? 'ml-0' : ''} lg:ml-64`}
+         tabIndex={-1}
+       >
+         <DashboardNavbar onMenuToggle={mobileMenu.toggle} isMobileMenuOpen={mobileMenu.isOpen} />
+
+         <div className="flex-1 p-4 md:p-8 max-w-5xl w-full mx-auto space-y-6 md:space-y-12 pb-safe">
+           <header>
+             <h2 className="text-2xl md:text-4xl font-bold text-white tracking-tight">Account Settings</h2>
+             <p className="text-gray-500 text-xs md:text-sm mt-3">
+               Manage your photography studio's global configuration, security protocols, and visual identity.
+             </p>
+           </header>
 
           {message.text && (
             <div className={`p-4 rounded-xl border flex items-center gap-3 ${message.type === 'success' ? 'bg-green-600/20 border-green-500/30' :
@@ -495,247 +518,246 @@ const Settings = () => {
             </div>
           </section>
 
-          {/* Profile Identity Section */}
-          <section className="space-y-6">
-            <div className="flex items-center gap-3 text-indigo-400">
-              <FiUser className="text-xl" />
-              <h3 className="text-lg font-semibold text-white">Profile Identity</h3>
-            </div>
+           {/* Profile Identity Section */}
+           <section className="space-y-6">
+             <div className="flex items-center gap-3 text-indigo-400">
+               <FiUser className="text-lg md:text-xl" />
+               <h3 className="text-base md:text-lg font-semibold text-white">Profile Identity</h3>
+             </div>
 
-            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-8 space-y-8">
-              <div className="flex items-center gap-6">
-                <div className="relative group">
-                  <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-indigo-500/30 bg-white/5">
-                    <img
-                      src={avatarPreview || profile.profileImage || DEFAULT_AVATAR}
-                      alt="Profile"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <label className="absolute bottom-0 right-0 p-2 bg-indigo-600 rounded-full text-white border-2 border-[#050505] hover:bg-indigo-500 transition-colors shadow-lg cursor-pointer">
-                    <FiEdit2 size={12} />
-                    <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
-                  </label>
-                </div>
+             <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 md:p-8 space-y-4 md:space-y-8">
+               <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 md:gap-6">
+                 <div className="relative group">
+                   <div className="w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden border-2 border-indigo-500/30 bg-white/5">
+                     <img
+                       src={avatarPreview || profile.profileImage || DEFAULT_AVATAR}
+                       alt="Profile"
+                       className="w-full h-full object-cover"
+                     />
+                   </div>
+                   <label className="absolute bottom-0 right-0 p-2 bg-indigo-600 rounded-full text-white border-2 border-[#050505] hover:bg-indigo-500 transition-colors shadow-lg cursor-pointer touch-target">
+                     <FiEdit2 size={12} />
+                     <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+                   </label>
+                 </div>
 
-                <div>
-                  <h4 className="text-sm font-medium text-white">Profile Picture</h4>
-                  <p className="text-xs text-gray-500 mt-1">Recommended size: 800×800px. JPG or PNG. Max 5MB.</p>
-                  <div className="flex gap-3 mt-3">
-                    <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer">
-                      <FiEdit2 size={12} />
-                      Choose Photo
-                      <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
-                    </label>
+                 <div className="flex-1 text-center sm:text-left">
+                   <h4 className="text-sm font-medium text-white">Profile Picture</h4>
+                   <p className="text-xs text-gray-500 mt-1">Recommended size: 800×800px. JPG or PNG. Max 5MB.</p>
+                   <div className="flex flex-wrap justify-center sm:justify-start gap-3 mt-3">
+                     <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer touch-target">
+                       <FiEdit2 size={12} />
+                       Choose Photo
+                       <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+                     </label>
 
-                    {selectedImageFile && (
-                      <>
-                        <button
-                          onClick={handleImageUpload}
-                          disabled={imageUploading}
-                          className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest bg-green-600/20 hover:bg-green-600/30 text-green-400 px-3 py-1 rounded transition-colors disabled:opacity-50"
-                        >
-                          <FiUpload size={12} />
-                          {imageUploading ? 'Uploading...' : 'Upload Now'}
-                        </button>
-                        <button
-                          onClick={handleCancelImage}
-                          className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-gray-300 transition-colors"
-                        >
-                          <FiX size={12} />
-                          Cancel
-                        </button>
-                      </>
-                    )}
+                     {selectedImageFile && (
+                       <>
+                         <button
+                           onClick={handleImageUpload}
+                           disabled={imageUploading}
+                           className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest bg-green-600/20 hover:bg-green-600/30 text-green-400 px-3 py-1 rounded transition-colors disabled:opacity-50 active:scale-95 touch-target"
+                         >
+                           <FiUpload size={12} />
+                           {imageUploading ? 'Uploading...' : 'Upload Now'}
+                         </button>
+                         <button
+                           onClick={handleCancelImage}
+                           className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-gray-300 transition-colors active:scale-95 touch-target"
+                         >
+                           <FiX size={12} />
+                           Cancel
+                         </button>
+                       </>
+                     )}
 
-                    {profile.profileImage && !selectedImageFile && (
-                      <button
-                        onClick={handleRemoveAvatar}
-                        disabled={imageUploading}
-                        className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-red-400/70 hover:text-red-400 transition-colors"
-                      >
-                        <FiTrash2 size={12} />
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                  {selectedImageFile && !imageUploading && (
-                    <p className="text-[9px] text-yellow-500 mt-2">New photo ready. Click "Upload Now" to save.</p>
-                  )}
-                </div>
-              </div>
+                     {profile.profileImage && !selectedImageFile && (
+                       <button
+                         onClick={handleRemoveAvatar}
+                         disabled={imageUploading}
+                         className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-red-400/70 hover:text-red-400 transition-colors active:scale-95 touch-target"
+                       >
+                         <FiTrash2 size={12} />
+                         Remove
+                       </button>
+                     )}
+                   </div>
+                   {selectedImageFile && !imageUploading && (
+                     <p className="text-[9px] text-yellow-500 mt-2">New photo ready. Click "Upload Now" to save.</p>
+                   )}
+                 </div>
+               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] uppercase font-bold text-gray-600 tracking-widest ml-1">Full Name</label>
-                  <input
-                    type="text"
-                    value={profile.name}
-                    onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                    className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 text-sm text-gray-300 outline-none focus:border-indigo-500 transition-all"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] uppercase font-bold text-gray-600 tracking-widest ml-1">Email Address</label>
-                  <input
-                    type="email"
-                    value={profile.email}
-                    onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                    className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 text-sm text-gray-300 outline-none focus:border-indigo-500 transition-all"
-                  />
-                  {!userMetadata.isVerified && (
-                    <p className="text-[9px] text-yellow-500 mt-1">⚠️ Email not verified. Please check your inbox.</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] uppercase font-bold text-gray-600 tracking-widest ml-1">Studio Name</label>
-                  <input
-                    type="text"
-                    value={profile.studioName}
-                    onChange={(e) => setProfile({ ...profile, studioName: e.target.value })}
-                    className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 text-sm text-gray-300 outline-none focus:border-indigo-500 transition-all"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] uppercase font-bold text-gray-600 tracking-widest ml-1">Studio Tier</label>
-                  <div className="relative">
-                    <select
-                      value="coming-soon"
-                      disabled
-                      className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 text-sm text-gray-500 outline-none cursor-not-allowed opacity-70"
-                    >
-                      <option value="coming-soon">Coming Soon</option>
-                    </select>
-                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-transparent rounded-xl pointer-events-none" />
-                  </div>
-                  <p className="text-[9px] text-gray-600 mt-1 ml-1">✨ Premium features are on the way!</p>
-                </div>
-              </div>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                 <div className="space-y-2">
+                   <label className="text-[10px] uppercase font-bold text-gray-600 tracking-widest ml-1">Full Name</label>
+                   <input
+                     type="text"
+                     value={profile.name}
+                     onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                     className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 text-sm text-gray-300 outline-none focus:border-indigo-500 transition-all touch-target"
+                   />
+                 </div>
+                 <div className="space-y-2">
+                   <label className="text-[10px] uppercase font-bold text-gray-600 tracking-widest ml-1">Email Address</label>
+                   <input
+                     type="email"
+                     value={profile.email}
+                     onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+                     className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 text-sm text-gray-300 outline-none focus:border-indigo-500 transition-all touch-target"
+                   />
+                   {!userMetadata.isVerified && (
+                     <p className="text-[9px] text-yellow-500 mt-1">⚠️ Email not verified. Please check your inbox.</p>
+                   )}
+                 </div>
+                 <div className="space-y-2">
+                   <label className="text-[10px] uppercase font-bold text-gray-600 tracking-widest ml-1">Studio Name</label>
+                   <input
+                     type="text"
+                     value={profile.studioName}
+                     onChange={(e) => setProfile({ ...profile, studioName: e.target.value })}
+                     className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 text-sm text-gray-300 outline-none focus:border-indigo-500 transition-all touch-target"
+                   />
+                 </div>
+                 <div className="space-y-2">
+                   <label className="text-[10px] uppercase font-bold text-gray-600 tracking-widest ml-1">Studio Tier</label>
+                   <div className="relative">
+                     <select
+                       value="coming-soon"
+                       disabled
+                       className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 text-sm text-gray-500 outline-none cursor-not-allowed opacity-70"
+                     >
+                       <option value="coming-soon">Coming Soon</option>
+                     </select>
+                     <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-transparent rounded-xl pointer-events-none" />
+                   </div>
+                   <p className="text-[9px] text-gray-600 mt-1 ml-1">✨ Premium features are on the way!</p>
+                 </div>
+               </div>
 
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={handleProfileUpdate}
-                  disabled={loading || imageUploading}
-                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold uppercase tracking-widest py-3 px-8 rounded-xl transition-all shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? <Loader size={16} variant="minimal" /> : <FiSave size={14} />}
-                  Save Profile Changes
-                </button>
-              </div>
-            </div>
-          </section>
+               <div className="flex justify-end">
+                 <button
+                   type="button"
+                   onClick={handleProfileUpdate}
+                   disabled={loading || imageUploading}
+                   className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold uppercase tracking-widest py-3 px-6 md:px-8 rounded-xl transition-all shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 touch-target"
+                 >
+                   {loading ? <Loader size={16} variant="minimal" /> : <FiSave size={14} />}
+                   Save Profile Changes
+                 </button>
+               </div>
+             </div>
+           </section>
 
-          {/* Security Protocols Section */}
-          {/* Security Protocols Section */}
-          <section className="space-y-6">
-            <div className="flex items-center gap-3 text-indigo-400">
-              <FiLock className="text-xl" />
-              <h3 className="text-lg font-semibold text-white">Security Protocols</h3>
-            </div>
+           {/* Security Protocols Section */}
+           <section className="space-y-6">
+             <div className="flex items-center gap-3 text-indigo-400">
+               <FiLock className="text-lg md:text-xl" />
+               <h3 className="text-base md:text-lg font-semibold text-white">Security Protocols</h3>
+             </div>
 
-            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-8 space-y-8">
-              <div>
-                <h4 className="text-sm font-medium text-white mb-6">Change Password</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+             <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 md:p-8 space-y-4 md:space-y-8">
+               <div>
+                 <h4 className="text-sm font-medium text-white mb-4 md:mb-6">Change Password</h4>
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
 
-                  {/* Current Password */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] uppercase font-bold text-gray-600 tracking-widest ml-1">Current Password</label>
-                    <div className="relative">
-                      <input
-                        type={showCurrentPassword ? "text" : "password"}
-                        placeholder="••••••••"
-                        value={passwordData.currentPassword}
-                        onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                        className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 pr-10 text-sm text-gray-300 outline-none focus:border-indigo-500 transition-all"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-indigo-400 transition-colors"
-                      >
-                        {showCurrentPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
-                      </button>
-                    </div>
-                  </div>
+                   {/* Current Password */}
+                   <div className="space-y-2">
+                     <label className="text-[10px] uppercase font-bold text-gray-600 tracking-widest ml-1">Current Password</label>
+                     <div className="relative">
+                       <input
+                         type={showCurrentPassword ? "text" : "password"}
+                         placeholder="••••••••"
+                         value={passwordData.currentPassword}
+                         onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                         className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 pr-10 text-sm text-gray-300 outline-none focus:border-indigo-500 transition-all touch-target"
+                       />
+                       <button
+                         type="button"
+                         onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-indigo-400 transition-colors touch-target"
+                       >
+                         {showCurrentPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+                       </button>
+                     </div>
+                   </div>
 
-                  {/* New Password */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] uppercase font-bold text-gray-600 tracking-widest ml-1">New Password</label>
-                    <div className="relative">
-                      <input
-                        type={showNewPassword ? "text" : "password"}
-                        placeholder="••••••••"
-                        value={passwordData.newPassword}
-                        onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                        className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 pr-10 text-sm text-gray-300 outline-none focus:border-indigo-500 transition-all"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowNewPassword(!showNewPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-indigo-400 transition-colors"
-                      >
-                        {showNewPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
-                      </button>
-                    </div>
-                  </div>
+                   {/* New Password */}
+                   <div className="space-y-2">
+                     <label className="text-[10px] uppercase font-bold text-gray-600 tracking-widest ml-1">New Password</label>
+                     <div className="relative">
+                       <input
+                         type={showNewPassword ? "text" : "password"}
+                         placeholder="••••••••"
+                         value={passwordData.newPassword}
+                         onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                         className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 pr-10 text-sm text-gray-300 outline-none focus:border-indigo-500 transition-all touch-target"
+                       />
+                       <button
+                         type="button"
+                         onClick={() => setShowNewPassword(!showNewPassword)}
+                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-indigo-400 transition-colors touch-target"
+                       >
+                         {showNewPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+                       </button>
+                     </div>
+                   </div>
 
-                  {/* Confirm New Password */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] uppercase font-bold text-gray-600 tracking-widest ml-1">Confirm New</label>
-                    <div className="relative">
-                      <input
-                        type={showConfirmPassword ? "text" : "password"}
-                        placeholder="••••••••"
-                        value={passwordData.confirmNewPassword}
-                        onChange={(e) => setPasswordData({ ...passwordData, confirmNewPassword: e.target.value })}
-                        className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 pr-10 text-sm text-gray-300 outline-none focus:border-indigo-500 transition-all"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-indigo-400 transition-colors"
-                      >
-                        {showConfirmPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                   {/* Confirm New Password */}
+                   <div className="space-y-2">
+                     <label className="text-[10px] uppercase font-bold text-gray-600 tracking-widest ml-1">Confirm New</label>
+                     <div className="relative">
+                       <input
+                         type={showConfirmPassword ? "text" : "password"}
+                         placeholder="••••••••"
+                         value={passwordData.confirmNewPassword}
+                         onChange={(e) => setPasswordData({ ...passwordData, confirmNewPassword: e.target.value })}
+                         className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 pr-10 text-sm text-gray-300 outline-none focus:border-indigo-500 transition-all touch-target"
+                       />
+                       <button
+                         type="button"
+                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-indigo-400 transition-colors touch-target"
+                       >
+                         {showConfirmPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+                       </button>
+                     </div>
+                   </div>
+                 </div>
+               </div>
 
-              <div className="pt-4 border-t border-white/5 flex justify-end">
-                <button
-                  onClick={handlePasswordUpdate}
-                  disabled={loading}
-                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold uppercase tracking-widest py-3 px-8 rounded-xl transition-all shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? <Loader size={16} variant="minimal" /> : <FiLock size={14} />}
-                  Update Password
-                </button>
-              </div>
-            </div>
-          </section>
+               <div className="pt-4 border-t border-white/5 flex justify-end">
+                 <button
+                   onClick={handlePasswordUpdate}
+                   disabled={loading}
+                   className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold uppercase tracking-widest py-3 px-6 md:px-8 rounded-xl transition-all shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 touch-target"
+                 >
+                   {loading ? <Loader size={16} variant="minimal" /> : <FiLock size={14} />}
+                   Update Password
+                 </button>
+               </div>
+             </div>
+           </section>
 
-          {/* Danger Zone */}
-          <section className="bg-red-500/5 border border-red-500/10 rounded-2xl p-8 flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <h4 className="text-sm font-medium text-red-400">Delete Studio Workspace</h4>
-              <p className="text-xs text-gray-500 mt-1">Permanently remove all galleries, client data, and assets. This action is irreversible.</p>
-            </div>
-            <button
-              onClick={handleDeleteWorkspace}
-              className="flex items-center gap-2 px-6 py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg text-[10px] font-bold text-red-400 uppercase tracking-widest transition-all"
-            >
-              <FiTrash2 size={14} /> Terminate Workspace
-            </button>
-          </section>
-        </div>
+           {/* Danger Zone */}
+           <section className="bg-red-500/5 border border-red-500/10 rounded-2xl p-4 md:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+             <div>
+               <h4 className="text-sm font-medium text-red-400">Delete Studio Workspace</h4>
+               <p className="text-xs text-gray-500 mt-1">Permanently remove all galleries, client data, and assets. This action is irreversible.</p>
+             </div>
+             <button
+               onClick={handleDeleteWorkspace}
+               className="flex items-center gap-2 px-4 md:px-6 py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg text-[10px] font-bold text-red-400 uppercase tracking-widest transition-all active:scale-95 touch-target w-full sm:w-auto justify-center"
+             >
+               <FiTrash2 size={14} /> Terminate Workspace
+             </button>
+           </section>
+         </div>
 
-        <Footer />
-      </main>
-    </div>
-  );
-};
+         <Footer />
+       </main>
+     </div>
+   );
+ };
 
 export default Settings;

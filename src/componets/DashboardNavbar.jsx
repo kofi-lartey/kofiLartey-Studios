@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { FiSearch, FiBell, FiUploadCloud, FiLogOut, FiUser } from "react-icons/fi";
+import { FiSearch, FiBell, FiUploadCloud, FiLogOut, FiUser, FiMenu, FiX } from "react-icons/fi";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { get } from "../utils/apiCall";
 
-const DashboardNavbar = () => {
+const DashboardNavbar = ({ onMenuToggle, isMobileMenuOpen }) => {
   const [userData, setUserData] = useState({
     fullName: "",
     studioName: "",
@@ -12,6 +12,7 @@ const DashboardNavbar = () => {
   });
   const [showDropdown, setShowDropdown] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
 
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -109,18 +110,31 @@ const DashboardNavbar = () => {
   };
 
   return (
-    <nav className="h-16 border-b border-white/5 bg-[#0a0a0c] flex items-center justify-between px-8 sticky top-0 z-40">
-      <div className="flex items-center gap-8 flex-1">
-        <div className="flex items-center gap-2">
+    <nav className="h-16 border-b border-white/5 bg-[#0a0a0c] flex items-center justify-between px-4 md:px-8 sticky top-0 z-40">
+      {/* Left side - Menu button + Logo + Search */}
+      <div className="flex items-center gap-3 md:gap-8 flex-1">
+        {/* Hamburger menu button (mobile only) */}
+        <button
+          onClick={onMenuToggle}
+          className="lg:hidden p-2 text-gray-400 hover:text-white transition-colors touch-target rounded-lg"
+          aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={isMobileMenuOpen}
+        >
+          {isMobileMenuOpen ? <FiX size={24} /> : <FiMenu size={24} />}
+        </button>
+
+        {/* Logo - hidden on mobile to save space */}
+        <div className="flex items-center gap-2 hidden sm:flex">
             <img 
                 src="https://res.cloudinary.com/djjgkezui/image/upload/v1778486731/ChatGPT_Image_May_11__2026__08_03_25_AM-removebg-preview_v3odik.png"
                 alt="kofiLartey Studios Logo"
                 className="h-6 w-auto"
             />
-            <h1 className="text-xl font-bold tracking-tight text-blue-100">Dashboard</h1>
+            <h1 className="text-lg md:text-xl font-bold tracking-tight text-blue-100">Dashboard</h1>
         </div>
-        
-        <div className="relative w-full max-w-md group">
+
+        {/* Search bar - collapsed on mobile to toggle */}
+        <div className="relative flex-1 max-w-md hidden md:block">
           <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-400 transition-colors" />
           <input 
             type="text" 
@@ -128,31 +142,62 @@ const DashboardNavbar = () => {
             className="w-full bg-white/5 border border-white/5 rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-blue-500/50 transition-all"
           />
         </div>
+
+        {/* Mobile search toggle */}
+        <button
+          onClick={() => setShowMobileSearch(!showMobileSearch)}
+          className="md:hidden p-2 text-gray-400 hover:text-white transition-colors touch-target rounded-lg"
+          aria-label="Toggle search"
+        >
+          <FiSearch size={20} />
+        </button>
       </div>
 
-      <div className="flex items-center gap-6">
-        <button className="relative text-gray-400 hover:text-white transition-colors">
+      {/* Mobile search bar (collapsible) */}
+      {showMobileSearch && (
+        <div className="absolute left-0 right-0 top-16 md:hidden p-4 bg-[#0a0a0c] border-b border-white/5 animate-slide-down">
+          <div className="relative">
+            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+            <input 
+              type="text" 
+              placeholder="Search..."
+              autoFocus
+              className="w-full bg-white/5 border border-white/5 rounded-lg py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:border-blue-500/50 transition-all"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Right side - Actions */}
+      <div className="flex items-center gap-2 md:gap-6">
+        {/* Notifications - hidden on small mobile */}
+        <button className="relative text-gray-400 hover:text-white transition-colors hidden sm:block">
           <FiBell size={20} />
           <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-[#0a0a0c]" />
         </button>
         
+        {/* Upload button */}
         <button 
           onClick={handleUpload}
-          className="flex items-center gap-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 px-4 py-2 rounded-lg border border-indigo-500/30 transition-all text-sm font-bold"
+          className="flex items-center gap-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 px-3 md:px-4 py-2 rounded-lg border border-indigo-500/30 transition-all text-xs md:text-sm font-bold active:scale-95 touch-target"
         >
-          <FiUploadCloud />
-          Upload
+          <FiUploadCloud size={16} />
+          <span className="hidden sm:inline">Upload</span>
         </button>
 
-        <div className="h-8 w-[1px] bg-white/10" />
+        <div className="hidden md:block h-8 w-[1px] bg-white/10" />
 
+        {/* User profile dropdown */}
         <div className="relative">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => setShowDropdown(!showDropdown)}>
-            <div className="text-right hidden sm:block">
+          <div 
+            className="flex items-center gap-2 md:gap-3 cursor-pointer" 
+            onClick={() => setShowDropdown(!showDropdown)}
+          >
+            <div className="text-right hidden md:block">
               {loading ? (
                 <>
-                  <div className="h-3 w-24 bg-white/10 rounded animate-pulse mb-1"></div>
-                  <div className="h-2 w-16 bg-white/10 rounded animate-pulse"></div>
+                  <div className="h-3 w-20 bg-white/10 rounded animate-pulse mb-1"></div>
+                  <div className="h-2 w-12 bg-white/10 rounded animate-pulse"></div>
                 </>
               ) : (
                 <>
@@ -167,20 +212,20 @@ const DashboardNavbar = () => {
               <img 
                 src={userData.avatar} 
                 alt="Profile" 
-                className="w-9 h-9 rounded-full grayscale hover:grayscale-0 transition-all cursor-pointer border border-white/10 object-cover"
+                className="w-9 h-9 rounded-full grayscale hover:grayscale-0 transition-all cursor-pointer border border-white/10 object-cover touch-target"
               />
             )}
           </div>
-          
+           
           {/* Dropdown Menu */}
           {showDropdown && (
-            <div className="absolute right-0 mt-2 w-48 bg-[#0a0a0c] border border-white/10 rounded-lg shadow-lg overflow-hidden z-50">
+            <div className="absolute right-0 mt-2 w-48 bg-[#0a0a0a] border border-white/10 rounded-lg shadow-lg overflow-hidden z-50 animate-fade-in">
               <button
                 onClick={() => {
                   setShowDropdown(false);
                   navigate('/settings');
                 }}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-white/5 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-white/5 transition-colors active:scale-95 touch-target"
               >
                 <FiUser size={16} />
                 <span>Account Settings</span>
@@ -190,7 +235,7 @@ const DashboardNavbar = () => {
                   setShowDropdown(false);
                   handleSignOut();
                 }}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 transition-colors border-t border-white/5"
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 transition-colors border-t border-white/5 active:scale-95 touch-target"
               >
                 <FiLogOut size={16} />
                 <span>Sign Out</span>

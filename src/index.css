@@ -262,3 +262,252 @@
   0%, 100% { transform: translateY(0); opacity: 0.5; }
   50% { transform: translateY(-4px); opacity: 1; }
 }
+
+/* ============================================
+   MOBILE RESPONSIVE UTILITIES
+   Custom utilities for responsive design
+   ============================================ */
+
+/* Safe area padding for modern phones with notches */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Hide scrollbar but keep functionality */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Smooth slide animations */
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slideInLeft 0.3s ease-out;
+}
+
+.animate-slide-down {
+  animation: slideDown 0.3s ease-out;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Better tap highlight removal */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Minimum touch target for interactive elements */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Active state for tactile feedback */
+.active-scale:active {
+  transform: scale(0.95);
+}
+
+/* Smooth transitions for mobile interactions */
+.transition-smooth {
+  transition: all 0.2s ease-out;
+}
+
+/* Mobile-optimized focus states */
+.focus-ring:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.5);
+}
+
+/* Prevent text selection on touch elements */
+.no-select {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Scrollable content with momentum on iOS */
+.scroll-smooth {
+  -webkit-overflow-scrolling: touch;
+  overflow-y: auto;
+}
+
+/* Fixed bottom navigation placeholder for mobile */
+.pb-nav {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 60px);
+}
+
+/* Mobile drawer overlay */
+.mobile-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 40;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease-out, visibility 0.3s ease-out;
+}
+
+.mobile-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Mobile drawer panel */
+.mobile-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: min(85vw, 320px);
+  max-width: 320px;
+  background: #050505;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 50;
+  transform: translateX(-100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobile-drawer.active {
+  transform: translateX(0);
+}
+
+/* Mobile-friendly select dropdown */
+.select-mobile {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+/* Card layout for mobile tables */
+.table-to-cards {
+  display: block;
+}
+
+.table-to-cards > * {
+  display: block;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.table-to-cards > * > * {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.table-to-cards > * > *:last-child {
+  border-bottom: none;
+}
+
+.table-to-cards-label::before {
+  content: attr(data-label);
+  font-weight: 600;
+  color: #9ca3af;
+  font-size: 0.875rem;
+  margin-right: 1rem;
+}
+
+/* Mobile-first responsive grid utilities */
+.responsive-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .responsive-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Skeleton loaders for better perceived performance */
+.skeleton-text {
+  background: linear-gradient(90deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 100%);
+  background-size: 200% 100%;
+  animation: shimmer-slide 2s infinite linear;
+  border-radius: 0.25rem;
+  height: 1em;
+  margin-bottom: 0.5rem;
+}
+
+.skeleton-text.short {
+  width: 60%;
+}
+
+.skeleton-text.medium {
+  width: 80%;
+}
+
+.skeleton-image {
+  aspect-ratio: 4/5;
+  border-radius: 1rem;
+  background: linear-gradient(90deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 100%);
+  background-size: 200% 100%;
+  animation: shimmer-slide 2s infinite linear;
+}
+
+/* Print styles for mobile */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

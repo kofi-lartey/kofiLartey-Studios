@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
-import { FiKey, FiLink, FiCopy, FiCheck, FiGrid, FiColumns, FiPlus, FiRefreshCw, FiSearch } from "react-icons/fi";
+import { FiKey, FiLink, FiCopy, FiCheck, FiGrid, FiColumns, FiPlus, FiRefreshCw, FiSearch, FiMenu } from "react-icons/fi";
 import Sidebar from "../componets/Sidebar";
 import DashboardNavbar from "../componets/DashboardNavbar";
 import Footer from "../componets/Footer";
 import RecentUploads from "../components/RecentUploads";
 import { get, post } from "../utils/apiCall";
+import { useMobileMenu } from "../hooks/useMobileMenu";
+import SkipLink from "../components/SkipLink";
 
 const Gallery = () => {
   const [copied, setCopied] = useState(false);
@@ -25,6 +27,7 @@ const Gallery = () => {
   const [galleryPreviewImages, setGalleryPreviewImages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [creatingLink, setCreatingLink] = useState(false);
+  const mobileMenu = useMobileMenu();
 
   // Load all galleries from API on mount
   useEffect(() => {
@@ -192,17 +195,28 @@ const Gallery = () => {
 
   return (
     <div className="min-h-screen bg-[#050505] flex">
-      <Sidebar />
+      {/* Skip to main content link for accessibility */}
+      <SkipLink />
 
-      <main className="flex-1 ml-64 flex flex-col">
-        <DashboardNavbar />
-
-        <div className="p-8 max-w-7xl w-full mx-auto space-y-10">
+      {/* Sidebar with mobile menu props */}
+      <Sidebar 
+        isMobileMenuOpen={mobileMenu.isOpen} 
+        closeMobileMenu={mobileMenu.close} 
+      />
+      
+      <main 
+        id="main-content"
+        className={`flex-1 flex flex-col transition-all duration-300 ${mobileMenu.isOpen ? 'ml-0' : ''} lg:ml-64`}
+        tabIndex={-1}
+      >
+        <DashboardNavbar onMenuToggle={mobileMenu.toggle} isMobileMenuOpen={mobileMenu.isOpen} />
+        
+        <div className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto space-y-6 md:space-y-10 pb-safe">
           {/* Header Section */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <h2 className="text-3xl font-bold text-white tracking-tight">Gallery Management</h2>
-              <p className="text-gray-500 text-sm mt-2 max-w-xl">
+              <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Gallery Management</h2>
+              <p className="text-gray-500 text-xs md:text-sm mt-2 max-w-xl">
                 Configure access permissions and generate secure sharing links for your portfolio.
               </p>
             </div>
@@ -228,9 +242,9 @@ const Gallery = () => {
           )}
 
           {/* Configuration Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
             {/* Left Column: Settings */}
-            <div className="bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl p-6 space-y-6 shadow-xl">
+            <div className="bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl p-4 md:p-6 space-y-4 md:space-y-6 shadow-xl">
               <div className="flex items-center gap-2">
                 <div className="w-1 h-6 bg-indigo-500 rounded-full" />
                 <h4 className="text-[11px] uppercase font-bold text-indigo-400 tracking-[0.2em]">Configuration</h4>
@@ -300,8 +314,8 @@ const Gallery = () => {
             </div>
 
             {/* Right Column: Client Details & Link Generation */}
-            <div className="lg:col-span-2 bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl p-6 shadow-xl">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="lg:col-span-2 bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl p-4 md:p-6 shadow-xl">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
                 {/* Left Side: Search Existing Gallery */}
                 <div className="space-y-6">
                   <div>
@@ -378,64 +392,64 @@ const Gallery = () => {
                   </div>
                 </div>
 
-                {/* Right Side: Client Details */}
-                <div className="bg-gradient-to-br from-white/[0.02] to-white/[0.01] border border-white/10 rounded-2xl p-5 relative overflow-hidden hover:border-white/15 transition-all">
-                  <div className="absolute top-0 right-0 p-3 opacity-10">
-                    <FiPlus size={48} className="text-white" />
-                  </div>
+                 {/* Right Side: Client Details */}
+                 <div className="bg-gradient-to-br from-white/[0.02] to-white/[0.01] border border-white/10 rounded-2xl p-4 md:p-5 relative overflow-hidden hover:border-white/15 transition-all">
+                   <div className="absolute top-0 right-0 p-3 opacity-10">
+                     <FiPlus size={48} className="text-white" />
+                   </div>
 
-                  <div className="relative z-10">
-                    <h4 className="text-[10px] uppercase font-bold text-indigo-400 tracking-[0.2em] mb-4 flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
-                      Client Information
-                    </h4>
+                   <div className="relative z-10">
+                     <h4 className="text-[10px] md:text-xs uppercase font-bold text-indigo-400 tracking-[0.2em] mb-4 flex items-center gap-2">
+                       <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                       Client Information
+                     </h4>
 
-                    <div className="space-y-4">
-                      <div className="group">
-                        <label className="block text-[9px] uppercase text-gray-500 tracking-wider mb-1 group-focus-within:text-indigo-400 transition-colors">
-                          Selected Gallery
-                        </label>
-                        <div className="bg-black/20 border border-white/10 rounded-xl py-2.5 px-4 text-sm text-gray-400">
-                          {selectedGallery ? selectedGallery.name : 'No gallery selected'}
-                        </div>
-                      </div>
+                     <div className="space-y-4">
+                       <div className="group">
+                         <label className="block text-[9px] uppercase text-gray-500 tracking-wider mb-1 group-focus-within:text-indigo-400 transition-colors">
+                           Selected Gallery
+                         </label>
+                         <div className="bg-black/20 border border-white/10 rounded-xl py-2.5 px-4 text-xs md:text-sm text-gray-400">
+                           {selectedGallery ? selectedGallery.name : 'No gallery selected'}
+                         </div>
+                       </div>
 
-                      <div className="group">
-                        <label className="block text-[9px] uppercase text-gray-500 tracking-wider mb-1 group-focus-within:text-indigo-400 transition-colors">
-                          Full Name *
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="John Doe"
-                          value={userName}
-                          onChange={(e) => setUserName(e.target.value)}
-                          className="w-full bg-transparent border-b border-white/10 py-2 text-sm text-white placeholder:text-gray-700 focus:border-indigo-500 outline-none transition-all"
-                        />
-                      </div>
+                       <div className="group">
+                         <label className="block text-[9px] uppercase text-gray-500 tracking-wider mb-1 group-focus-within:text-indigo-400 transition-colors">
+                           Full Name *
+                         </label>
+                         <input
+                           type="text"
+                           placeholder="John Doe"
+                           value={userName}
+                           onChange={(e) => setUserName(e.target.value)}
+                           className="w-full bg-transparent border-b border-white/10 py-2.5 text-xs md:text-sm text-white placeholder:text-gray-700 focus:border-indigo-500 outline-none transition-all"
+                         />
+                       </div>
 
-                      <div className="group">
-                        <label className="block text-[9px] uppercase text-gray-500 tracking-wider mb-1 group-focus-within:text-indigo-400 transition-colors">
-                          Email Address *
-                        </label>
-                        <input
-                          type="email"
-                          placeholder="hello@example.com"
-                          value={userEmail}
-                          onChange={(e) => setUserEmail(e.target.value)}
-                          className="w-full bg-transparent border-b border-white/10 py-2 text-sm text-white placeholder:text-gray-700 focus:border-indigo-500 outline-none transition-all"
-                        />
-                      </div>
+                       <div className="group">
+                         <label className="block text-[9px] uppercase text-gray-500 tracking-wider mb-1 group-focus-within:text-indigo-400 transition-colors">
+                           Email Address *
+                         </label>
+                         <input
+                           type="email"
+                           placeholder="hello@example.com"
+                           value={userEmail}
+                           onChange={(e) => setUserEmail(e.target.value)}
+                           className="w-full bg-transparent border-b border-white/10 py-2.5 text-xs md:text-sm text-white placeholder:text-gray-700 focus:border-indigo-500 outline-none transition-all"
+                         />
+                       </div>
 
-                      <button
-                        onClick={handleCreateAndGenerate}
-                        disabled={!selectedGallery || creatingLink}
-                        className="w-full mt-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-[11px] font-bold uppercase tracking-widest py-3 rounded-xl hover:from-indigo-500 hover:to-purple-500 transition-all duration-300 shadow-xl active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {creatingLink ? 'Generating...' : 'Create & Generate Link'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                       <button
+                         onClick={handleCreateAndGenerate}
+                         disabled={!selectedGallery || creatingLink}
+                         className="w-full mt-4 md:mt-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-[11px] md:text-xs font-bold uppercase tracking-widest py-3 rounded-xl hover:from-indigo-500 hover:to-purple-500 transition-all duration-300 shadow-xl active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                       >
+                         {creatingLink ? 'Generating...' : 'Create & Generate Link'}
+                       </button>
+                     </div>
+                   </div>
+                 </div>
               </div>
 
               {/* Footer / Status Bar */}
@@ -462,7 +476,7 @@ const Gallery = () => {
 
           {/* Recent Uploads */}
           {selectedGallery && (
-            <div className="mt-8">
+            <div className="mt-6 md:mt-8">
               <RecentUploads
                 key={recentUploadsKey}
                 refreshTrigger={refreshUploads}
@@ -472,14 +486,14 @@ const Gallery = () => {
           )}
 
           {/* Gallery Preview Section */}
-          <section className="pt-6">
-            <div className="flex justify-between items-end mb-8 border-b border-white/5 pb-4">
+          <section className="pt-4 md:pt-6">
+            <div className="flex justify-between items-end mb-4 md:mb-8 border-b border-white/5 pb-4">
               <div>
-                <h3 className="text-2xl font-bold text-white">
+                <h3 className="text-xl md:text-2xl font-bold text-white">
                   {selectedGallery ? `${selectedGallery.name} Preview` : "Gallery Preview"}
                 </h3>
-                <p className="text-gray-500 text-sm mt-1">
-                  {selectedGallery ? `${galleryPreviewImages.length} images in this gallery` : "Select a gallery to preview images"}
+                <p className="text-gray-500 text-xs md:text-sm mt-1">
+                  {selectedGallery ? `${galleryPreviewImages.length} images in this gallery` : "Select a gallery to preview images."}
                 </p>
               </div>
               <div className="flex gap-3 text-gray-500">
@@ -489,18 +503,18 @@ const Gallery = () => {
             </div>
 
             {selectedGallery && galleryPreviewImages.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
                 {galleryPreviewImages.map((img, index) => (
-                  <div key={img.id || index} className="group relative aspect-[4/5] rounded-2xl overflow-hidden border border-white/5 bg-white/5">
+                  <div key={img.id || index} className="group relative aspect-[4/5] rounded-xl md:rounded-2xl overflow-hidden border border-white/5 bg-white/5">
                     <img
                       src={img.url}
                       alt={img.name}
                       className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 group-hover:scale-105"
                       loading="lazy"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-4 flex flex-col justify-end">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-3 md:p-4 flex flex-col justify-end">
                       <p className="text-xs font-bold text-white truncate">{img.name}</p>
-                      <p className="text-[10px] text-gray-400 mt-1">
+                      <p className="text-[9px] md:text-[10px] text-gray-400 mt-1">
                         {(img.size / 1024 / 1024).toFixed(1)} MB • {img.uploadedAt ? new Date(img.uploadedAt).toLocaleDateString() : 'Recent'}
                       </p>
                     </div>
@@ -519,11 +533,13 @@ const Gallery = () => {
                 )}
               </div>
             )}
-          </section>
+           </section>
         </div>
 
         <Footer />
       </main>
+      
+      {/* Mobile menu overlay handled by Sidebar */}
     </div>
   );
 };

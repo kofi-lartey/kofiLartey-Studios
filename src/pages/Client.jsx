@@ -4,12 +4,14 @@ import {
   FiExternalLink, FiUsers, FiFolder, FiHardDrive, FiTrash2, 
   FiKey, FiMail, FiImage, FiAlertCircle, FiX, FiRefreshCw, 
   FiCalendar, FiEdit2, FiSave, FiUser, FiAtSign, FiLock,
-  FiCamera, FiClock
+  FiCamera, FiClock, FiMenu
 } from "react-icons/fi";
 import Sidebar from "../componets/Sidebar";
 import DashboardNavbar from "../componets/DashboardNavbar";
 import Footer from "../componets/Footer";
 import { get, del, put } from "../utils/apiCall";
+import { useMobileMenu } from "../hooks/useMobileMenu";
+import SkipLink from "../components/SkipLink";
 
 const Clients = () => {
   const [copyStatus, setCopyStatus] = useState(null);
@@ -36,6 +38,7 @@ const Clients = () => {
     hasPrevPage: false
   });
   const [currentPage, setCurrentPage] = useState(1);
+  const mobileMenu = useMobileMenu();
   
   // Edit form state
   const [editFormData, setEditFormData] = useState({
@@ -477,14 +480,25 @@ const Clients = () => {
 
   return (
     <div className="min-h-screen bg-[#050505] flex">
-      <Sidebar />
+      {/* Skip to main content link for accessibility */}
+      <SkipLink />
+
+      {/* Sidebar with mobile menu props */}
+      <Sidebar 
+        isMobileMenuOpen={mobileMenu.isOpen} 
+        closeMobileMenu={mobileMenu.close} 
+      />
       
-      <main className="flex-1 ml-64 flex flex-col">
-        <DashboardNavbar />
+      <main 
+        id="main-content"
+        className={`flex-1 flex flex-col transition-all duration-300 ${mobileMenu.isOpen ? 'ml-0' : ''} lg:ml-64`}
+        tabIndex={-1}
+      >
+        <DashboardNavbar onMenuToggle={mobileMenu.toggle} isMobileMenuOpen={mobileMenu.isOpen} />
         
-        <div className="p-8 max-w-7xl w-full mx-auto space-y-8">
+        <div className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto space-y-4 md:space-y-8 pb-safe">
           {/* Stats Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
             <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 hover:border-indigo-500/20 transition-all">
               <div className="flex items-center gap-3 mb-2">
                 <FiUsers className="text-indigo-400" size={20} />
@@ -522,31 +536,31 @@ const Clients = () => {
           </div>
 
           {/* Controls */}
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-3 md:gap-4">
             <div className="relative w-full md:w-96">
-              <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
+              <FiSearch className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 text-gray-500" />
               <input 
                 type="text" 
                 placeholder="Search by name, email, or gallery..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-white/[0.02] border border-white/5 rounded-xl py-3 pl-12 pr-4 text-sm text-gray-300 outline-none focus:border-indigo-500/50 transition-all"
+                className="w-full bg-white/[0.02] border border-white/5 rounded-xl py-3 pl-10 md:pl-12 pr-4 text-xs md:text-sm text-gray-300 outline-none focus:border-indigo-500/50 transition-all"
               />
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-2 md:gap-3 w-full md:w-auto">
               <button 
                 onClick={loadClients}
                 disabled={isLoading}
-                className="flex items-center gap-2 px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/10 text-gray-300 rounded-xl text-xs font-bold uppercase tracking-widest transition-all"
+                className="flex-1 md:flex-none flex items-center justify-center md:justify-start gap-2 px-3 md:px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/10 text-gray-300 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95 touch-target"
               >
                 <FiRefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
-                Refresh
+                <span className="hidden sm:inline">Refresh</span>
               </button>
               <button 
                 onClick={() => window.location.href = '/gallery'}
-                className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg"
+                className="flex-1 md:flex-none flex items-center justify-center md:justify-start gap-2 px-4 md:px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg active:scale-95 touch-target"
               >
-                <FiUserPlus size={16} /> Create New Client
+                <FiUserPlus size={16} /> <span className="hidden sm:inline">Create New Client</span>
               </button>
             </div>
           </div>
@@ -562,184 +576,256 @@ const Clients = () => {
             </div>
           )}
 
-          {/* Client Table */}
+          {/* Client Table/List - Responsive Cards on Mobile */}
           <div className="bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden">
             {isLoading ? (
               <div className="text-center py-20">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
-                <p className="text-gray-500 text-sm mt-4">Loading galleries...</p>
+                <p className="text-gray-500 text-xs md:text-sm mt-4">Loading galleries...</p>
               </div>
             ) : filteredClients.length === 0 ? (
               <div className="text-center py-20">
-                <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-white/5 flex items-center justify-center">
-                  <FiUsers size={32} className="text-gray-600" />
+                <div className="w-16 h-16 md:w-20 md:h-20 mx-auto mb-4 md:mb-6 rounded-full bg-white/5 flex items-center justify-center">
+                  <FiUsers size={24} md:size={32} className="text-gray-600" />
                 </div>
                 <p className="text-gray-500 text-sm">No galleries found</p>
                 <button 
                   onClick={() => window.location.href = '/gallery'}
-                  className="mt-4 px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold uppercase tracking-widest transition-all"
+                  className="mt-4 px-4 md:px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold uppercase tracking-widest transition-all active:scale-95 touch-target"
                 >
                   Go to Gallery
                 </button>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left min-w-[800px]">
-                  <thead>
-                    <tr className="border-b border-white/5 text-[10px] uppercase font-bold text-gray-600 tracking-widest">
-                      <th className="px-8 py-6">CLIENT IDENTITY</th>
-                      <th className="px-8 py-6">CONTACT & ACCESS</th>
-                      <th className="px-8 py-6">STATUS</th>
-                      <th className="px-8 py-6">GALLERY INFO</th>
-                      <th className="px-8 py-6 text-right">ACTIONS</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {filteredClients.map((client) => (
-                      <tr key={client.id} className="group hover:bg-white/[0.02] transition-colors">
-                        <td className="px-8 py-6">
-                          <div className="flex items-center gap-4">
-                            <img 
-                              src={client.avatar} 
-                              alt={client.name} 
-                              className="w-12 h-12 rounded-xl object-cover ring-1 ring-white/10 group-hover:ring-indigo-500/50 transition-all" 
-                            />
-                            <div>
-                              <p className="text-sm font-bold text-white group-hover:text-indigo-400 transition-colors">
-                                {client.name}
-                              </p>
-                              <div className="flex items-center gap-2 mt-1">
-                                <FiCalendar size={10} className="text-gray-600" />
-                                <p className="text-[10px] text-gray-500">
-                                  Created: {formatDate(client.createdAt)}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        
-                        <td className="px-8 py-6">
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <FiMail size={12} className="text-gray-600" />
-                              <span className="text-xs text-gray-400">{client.email}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <FiKey size={12} className="text-gray-600" />
-                              <code className="text-[11px] text-indigo-400 font-mono bg-indigo-400/10 px-2 py-1 rounded">
-                                {client.accessKey}
-                              </code>
-                              <button 
-                                onClick={() => handleCopyAccessKey(client.accessKey, client.id)}
-                                className="text-gray-500 hover:text-indigo-400 transition-colors"
-                                title="Copy access key"
-                              >
-                                {copyStatus === `key-${client.id}` ? <FiCheck size={12} className="text-green-400" /> : <FiCopy size={12} />}
-                              </button>
-                            </div>
-                          </div>
-                        </td>
-                        
-                        <td className="px-8 py-6">
-                          <div className="flex flex-col gap-1">
-                            <span className={`text-[9px] uppercase font-bold px-2 py-1 rounded-full border w-fit ${getStatusColor(client.status)}`}>
+              <>
+                {/* Mobile Card Layout - Hidden on desktop */}
+                <div className="md:hidden divide-y divide-white/5">
+                  {filteredClients.map((client) => (
+                    <div key={client.id} className="p-4 hover:bg-white/[0.02] transition-colors">
+                      <div className="flex items-start gap-3 mb-3">
+                        <img 
+                          src={client.avatar} 
+                          alt={client.name} 
+                          className="w-12 h-12 rounded-xl object-cover ring-1 ring-white/10" 
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-white truncate">{client.name}</p>
+                          <p className="text-xs text-gray-400 truncate">{client.email}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full border w-fit ${getStatusColor(client.status)}`}>
                               {client.status}
                             </span>
-                            <span className="text-[9px] text-gray-600">{client.tag}</span>
+                            <span className="text-[9px] text-gray-500">• {client.galleryName}</span>
                           </div>
-                        </td>
-                        
-                        <td className="px-8 py-6">
-                          <p className="text-sm font-semibold text-indigo-400 group-hover:text-indigo-300 transition-colors">
-                            {client.galleryName}
-                          </p>
-                          <div className="flex items-center gap-3 mt-2">
-                            <span className="text-[10px] text-gray-500 flex items-center gap-1">
-                              <FiImage size={10} /> {client.imageCount} images
-                            </span>
-                          </div>
-                        </td>
-                        
-                        <td className="px-8 py-6 text-right">
-                          <div className="flex justify-end items-center gap-2">
-                            {/* Copy Link Button */}
-                            <button 
-                              onClick={() => handleCopyLink(client.link, client.id)}
-                              className="p-2 rounded-lg bg-white/10 hover:bg-indigo-600/20 text-gray-400 hover:text-indigo-400 transition-all duration-200"
-                              title="Copy gallery link"
-                            >
-                              {copyStatus === client.id ? <FiCheck size={16} className="text-green-400" /> : <FiCopy size={16} />}
-                            </button>
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <div className="flex items-center gap-1 text-gray-500">
+                          <FiImage size={12} /> {client.imageCount} images
+                        </div>
+                        <div className="flex items-center gap-1 text-gray-500">
+                          <FiKey size={12} /> <code className="text-indigo-400 font-mono text-[10px]">{client.accessKey}</code>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/5">
+                        <button 
+                          onClick={() => handleCopyLink(client.link, client.id)}
+                          className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-white/5 rounded-lg text-gray-400 hover:text-indigo-400 transition-all active:scale-95 touch-target"
+                        >
+                          {copyStatus === client.id ? <FiCheck size={14} className="text-green-400" /> : <FiCopy size={14} />}
+                          <span className="text-xs">Link</span>
+                        </button>
+                        <a 
+                          href={client.link} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-white/5 rounded-lg text-gray-400 hover:text-indigo-400 transition-all active:scale-95 touch-target"
+                        >
+                          <FiExternalLink size={14} /> <span className="text-xs">View</span>
+                        </a>
+                        <button 
+                          onClick={() => handleEditGallery(client)}
+                          className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-white/5 rounded-lg text-gray-400 hover:text-yellow-400 transition-all active:scale-95 touch-target"
+                        >
+                          <FiEdit2 size={14} /> <span className="text-xs">Edit</span>
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setSelectedGallery(client);
+                            setShowDeleteModal(true);
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-white/5 rounded-lg text-gray-400 hover:text-red-400 transition-all active:scale-95 touch-target"
+                        >
+                          <FiTrash2 size={14} /> <span className="text-xs">Delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop Table Layout - Hidden on mobile */}
+                <div className="hidden md:block">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left min-w-[800px]">
+                      <thead>
+                        <tr className="border-b border-white/5 text-[10px] uppercase font-bold text-gray-600 tracking-widest">
+                          <th className="px-6 md:px-8 py-4 md:py-6">CLIENT IDENTITY</th>
+                          <th className="px-6 md:px-8 py-4 md:py-6">CONTACT & ACCESS</th>
+                          <th className="px-6 md:px-8 py-4 md:py-6">STATUS</th>
+                          <th className="px-6 md:px-8 py-4 md:py-6">GALLERY INFO</th>
+                          <th className="px-6 md:px-8 py-4 md:py-6 text-right">ACTIONS</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {filteredClients.map((client) => (
+                          <tr key={client.id} className="group hover:bg-white/[0.02] transition-colors">
+                            <td className="px-6 md:px-8 py-4 md:py-6">
+                              <div className="flex items-center gap-3 md:gap-4">
+                                <img 
+                                  src={client.avatar} 
+                                  alt={client.name} 
+                                  className="w-10 h-10 md:w-12 md:h-12 rounded-xl object-cover ring-1 ring-white/10 group-hover:ring-indigo-500/50 transition-all" 
+                                />
+                                <div>
+                                  <p className="text-xs md:text-sm font-bold text-white group-hover:text-indigo-400 transition-colors">
+                                    {client.name}
+                                  </p>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <FiCalendar size={10} className="text-gray-600" />
+                                    <p className="text-[10px] text-gray-500">
+                                      Created: {formatDate(client.createdAt)}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
                             
-                            {/* View Gallery Button */}
-                            <a 
-                              href={client.link} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="p-2 rounded-lg bg-white/10 hover:bg-indigo-600/20 text-gray-400 hover:text-indigo-400 transition-all duration-200"
-                              title="Open gallery"
-                            >
-                              <FiExternalLink size={16} />
-                            </a>
+                            <td className="px-6 md:px-8 py-4 md:py-6">
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <FiMail size={12} className="text-gray-600" />
+                                  <span className="text-xs text-gray-400">{client.email}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <FiKey size={12} className="text-gray-600" />
+                                  <code className="text-[10px] md:text-[11px] text-indigo-400 font-mono bg-indigo-400/10 px-2 py-1 rounded">
+                                    {client.accessKey}
+                                  </code>
+                                  <button 
+                                    onClick={() => handleCopyAccessKey(client.accessKey, client.id)}
+                                    className="text-gray-500 hover:text-indigo-400 transition-colors"
+                                    title="Copy access key"
+                                  >
+                                    {copyStatus === `key-${client.id}` ? <FiCheck size={12} className="text-green-400" /> : <FiCopy size={12} />}
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
                             
-                            {/* Edit Button */}
-                            <button 
-                              onClick={() => handleEditGallery(client)}
-                              className="p-2 rounded-lg bg-white/10 hover:bg-yellow-600/20 text-gray-400 hover:text-yellow-400 transition-all duration-200"
-                              title="Edit gallery"
-                            >
-                              <FiEdit2 size={16} />
-                            </button>
+                            <td className="px-6 md:px-8 py-4 md:py-6">
+                              <div className="flex flex-col gap-1">
+                                <span className={`text-[9px] uppercase font-bold px-2 py-1 rounded-full border w-fit ${getStatusColor(client.status)}`}>
+                                  {client.status}
+                                </span>
+                                <span className="text-[9px] text-gray-600">{client.tag}</span>
+                              </div>
+                            </td>
                             
-                            {/* Delete Button */}
-                            <button 
-                              onClick={() => {
-                                setSelectedGallery(client);
-                                setShowDeleteModal(true);
-                              }}
-                              className="p-2 rounded-lg bg-white/10 hover:bg-red-600/20 text-gray-400 hover:text-red-400 transition-all duration-200"
-                              title="Delete gallery"
-                            >
-                              <FiTrash2 size={16} />
-                            </button>
+                            <td className="px-6 md:px-8 py-4 md:py-6">
+                              <p className="text-sm font-semibold text-indigo-400 group-hover:text-indigo-300 transition-colors">
+                                {client.galleryName}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1 md:mt-2">
+                                <span className="text-[10px] text-gray-500 flex items-center gap-1">
+                                  <FiImage size={10} /> {client.imageCount} images
+                                </span>
+                              </div>
+                            </td>
                             
-                            {/* More Options Button */}
-                            <button 
-                              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-gray-400 hover:text-white transition-all duration-200"
-                              title="More options"
-                            >
-                              <FiMoreHorizontal size={16} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                            <td className="px-6 md:px-8 py-4 md:py-6 text-right">
+                              <div className="flex justify-end items-center gap-1 md:gap-2">
+                                {/* Copy Link Button */}
+                                <button 
+                                  onClick={() => handleCopyLink(client.link, client.id)}
+                                  className="p-1.5 md:p-2 rounded-lg bg-white/10 hover:bg-indigo-600/20 text-gray-400 hover:text-indigo-400 transition-all duration-200 active:scale-95 touch-target"
+                                  title="Copy gallery link"
+                                >
+                                  {copyStatus === client.id ? <FiCheck size={14} md:size={16} className="text-green-400" /> : <FiCopy size={14} md:size={16} />}
+                                </button>
+                                
+                                {/* View Gallery Button */}
+                                <a 
+                                  href={client.link} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="p-1.5 md:p-2 rounded-lg bg-white/10 hover:bg-indigo-600/20 text-gray-400 hover:text-indigo-400 transition-all duration-200 active:scale-95 touch-target"
+                                  title="Open gallery"
+                                >
+                                  <FiExternalLink size={14} md:size={16} />
+                                </a>
+                                
+                                {/* Edit Button */}
+                                <button 
+                                  onClick={() => handleEditGallery(client)}
+                                  className="p-1.5 md:p-2 rounded-lg bg-white/10 hover:bg-yellow-600/20 text-gray-400 hover:text-yellow-400 transition-all duration-200 active:scale-95 touch-target"
+                                  title="Edit gallery"
+                                >
+                                  <FiEdit2 size={14} md:size={16} />
+                                </button>
+                                
+                                {/* Delete Button */}
+                                <button 
+                                  onClick={() => {
+                                    setSelectedGallery(client);
+                                    setShowDeleteModal(true);
+                                  }}
+                                  className="p-1.5 md:p-2 rounded-lg bg-white/10 hover:bg-red-600/20 text-gray-400 hover:text-red-400 transition-all duration-200 active:scale-95 touch-target"
+                                  title="Delete gallery"
+                                >
+                                  <FiTrash2 size={14} md:size={16} />
+                                </button>
+                                
+                                {/* More Options Button */}
+                                <button 
+                                  className="p-1.5 md:p-2 rounded-lg bg-white/10 hover:bg-white/20 text-gray-400 hover:text-white transition-all duration-200 active:scale-95 touch-target"
+                                  title="More options"
+                                >
+                                  <FiMoreHorizontal size={14} md:size={16} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
             )}
             
-            {/* Pagination */}
+            {/* Pagination - Responsive */}
             {pagination.totalPages > 1 && (
-              <div className="p-6 border-t border-white/5 flex justify-between items-center bg-black/20">
-                <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">
+              <div className="p-4 md:p-6 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-3 md:gap-4 bg-black/20">
+                <p className="text-[10px] md:text-xs text-gray-600 font-bold uppercase tracking-widest">
                   Showing {filteredClients.length} of {pagination.totalItems} galleries
                 </p>
                 <div className="flex gap-2">
                   <button 
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     disabled={!pagination.hasPrevPage}
-                    className="px-4 py-2 rounded-lg bg-white/5 text-gray-300 text-xs border border-white/10 hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-3 md:px-4 py-2 rounded-lg bg-white/5 text-gray-300 text-xs border border-white/10 hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 touch-target"
                   >
                     Previous
                   </button>
-                  <span className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs">
+                  <span className="px-3 md:px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs">
                     {pagination.currentPage} / {pagination.totalPages}
                   </span>
                   <button 
                     onClick={() => setCurrentPage(prev => Math.min(pagination.totalPages, prev + 1))}
                     disabled={!pagination.hasNextPage}
-                    className="px-4 py-2 rounded-lg bg-white/5 text-gray-300 text-xs border border-white/10 hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-3 md:px-4 py-2 rounded-lg bg-white/5 text-gray-300 text-xs border border-white/10 hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 touch-target"
                   >
                     Next
                   </button>

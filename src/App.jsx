@@ -1,6 +1,7 @@
 import { Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 import HomePage from './pages/HomePage';
 import Dashboard from './pages/Dashboard';
 import Gallery from './pages/Gallery';
@@ -47,14 +48,41 @@ function App() {
           <Route path="/register" element={<Registration />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/email-confirmation" element={<EmailConfirmation />} />
-          // Add this route with your other auth routes
           <Route path="/resend-verification" element={<ResendVerification />} />
 
           {/* Studio Core (Protected) */}
-          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/galleries" element={<ProtectedRoute><Gallery /></ProtectedRoute>} />
-          <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
-          <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+          <Route 
+            path="/dashboard" 
+            element={
+              <ErrorBoundary>
+                <ProtectedRoute><Dashboard /></ProtectedRoute>
+              </ErrorBoundary>
+            } 
+          />
+          <Route 
+            path="/galleries" 
+            element={
+              <ErrorBoundary>
+                <ProtectedRoute><Gallery /></ProtectedRoute>
+              </ErrorBoundary>
+            } 
+          />
+          <Route 
+            path="/clients" 
+            element={
+              <ErrorBoundary>
+                <ProtectedRoute><Clients /></ProtectedRoute>
+              </ErrorBoundary>
+            } 
+          />
+          <Route 
+            path="/settings" 
+            element={
+              <ErrorBoundary>
+                <ProtectedRoute><Settings /></ProtectedRoute>
+              </ErrorBoundary>
+            } 
+          />
 
           {/* Client Gallery Access - NOT PROTECTED - Public accessible with access key */}
           <Route path="/clientGallery" element={<ClientGallery />} />
@@ -63,14 +91,18 @@ function App() {
           {/* Legacy routes - keep for backward compatibility */}
           <Route path="/clientGallery/:galleryName/:galleryId" element={<ClientGallery />} />
           <Route path="/clientGallery/:galleryName/:galleryId/slideshow" element={<Slideshow />} />
-          {/* ✅ Add this route for client gallery access */}
           <Route path="/clientGallery/:galleryID" element={<ClientGallery />} />
-
-          {/* Optional: Support for slideshow route */}
           <Route path="/clientGallery/:galleryID/slideshow" element={<Slideshow />} />
 
           {/* Protected Slideshow for authenticated users */}
-          <Route path="/slideshow" element={<ProtectedRoute><Slideshow isOpen={true} onClose={() => window.history.back()} /></ProtectedRoute>} />
+          <Route 
+            path="/slideshow" 
+            element={
+              <ErrorBoundary>
+                <ProtectedRoute><Slideshow isOpen={true} onClose={() => window.history.back()} /></ProtectedRoute>
+              </ErrorBoundary>
+            } 
+          />
 
           {/* Misc */}
           <Route path="/coming-soon" element={<ComingSoon />} />

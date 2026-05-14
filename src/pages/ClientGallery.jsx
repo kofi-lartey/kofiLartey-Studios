@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
     FiDownload,
     FiMaximize2,
@@ -27,6 +27,9 @@ const SlideshowModal = ({ images, galleryName, onClose, initialIndex = 0 }) => {
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
     const [isPlaying, setIsPlaying] = useState(true);
     const [showControls, setShowControls] = useState(true);
+    const touchStartX = useRef(0);
+    const touchEndX = useRef(0);
+    const controlsTimeout = useRef(null);
 
     useEffect(() => {
         let interval;
@@ -58,34 +61,60 @@ const SlideshowModal = ({ images, galleryName, onClose, initialIndex = 0 }) => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [handlePrevious, handleNext, onClose]);
 
-    let controlsTimeout;
+    // Touch swipe handlers
+    const handleTouchStart = (e) => {
+        touchStartX.current = e.touches[0].clientX;
+    };
+
+    const handleTouchMove = (e) => {
+        touchEndX.current = e.touches[0].clientX;
+    };
+
+    const handleTouchEnd = () => {
+        const swipeThreshold = 50;
+        const diff = touchStartX.current - touchEndX.current;
+        
+        if (Math.abs(diff) > swipeThreshold) {
+            if (diff > 0) {
+                handleNext(); // Swipe left -> next
+            } else {
+                handlePrevious(); // Swipe right -> previous
+            }
+        }
+    };
 
     return (
         <div
             className="fixed inset-0 bg-black z-[200] flex flex-col"
             onMouseMove={() => {
                 setShowControls(true);
-                clearTimeout(controlsTimeout);
-                controlsTimeout = setTimeout(() => setShowControls(false), 3000);
+                clearTimeout(controlsTimeout.current);
+                controlsTimeout.current = setTimeout(() => setShowControls(false), 3000);
             }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            role="dialog"
+            aria-label="Image slideshow"
         >
             {/* Header Controls */}
-            <div className={`absolute top-0 left-0 right-0 p-6 bg-gradient-to-b from-black/80 to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+            <div className={`absolute top-0 left-0 right-0 p-4 md:p-6 bg-gradient-to-b from-black/80 to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
                 <div className="flex justify-between items-center">
-                    <div className="text-white">
-                        <p className="text-sm font-medium">Slideshow Mode</p>
-                        <p className="text-xs text-gray-400">
+                    <div className="text-white px-2">
+                        <p className="text-sm md:text-base font-medium">Slideshow Mode</p>
+                        <p className="text-xs md:text-sm text-gray-400">
                             {currentIndex + 1} of {images.length}
                         </p>
                         {galleryName && (
-                            <p className="text-xs text-indigo-400 mt-1">
+                            <p className="text-xs md:text-sm text-indigo-400 mt-1 line-clamp-1">
                                 {galleryName}
                             </p>
                         )}
                     </div>
                     <button
                         onClick={onClose}
-                        className="text-white hover:bg-white/10 p-2 rounded-full transition-all"
+                        className="text-white hover:bg-white/10 p-2 md:p-3 rounded-full transition-all active:scale-95 touch-target"
+                        aria-label="Close slideshow"
                     >
                         <FiX size={24} />
                     </button>
@@ -98,37 +127,41 @@ const SlideshowModal = ({ images, galleryName, onClose, initialIndex = 0 }) => {
                     src={images[currentIndex]}
                     alt={`Slide ${currentIndex + 1}`}
                     className="max-w-full max-h-[85vh] object-contain shadow-2xl"
+                    loading="lazy"
                 />
             </div>
 
             {/* Bottom Controls */}
-            <div className={`absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
-                <div className="flex items-center justify-center gap-6">
+            <div className={`absolute bottom-0 left-0 right-0 p-4 md:p-6 bg-gradient-to-t from-black/80 to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+                <div className="flex items-center justify-center gap-4 md:gap-6">
                     <button
                         onClick={handlePrevious}
-                        className="p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all"
+                        className="p-3 md:p-4 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all active:scale-95 touch-target"
+                        aria-label="Previous image"
                     >
                         <FiChevronLeft size={24} />
                     </button>
 
                     <button
                         onClick={() => setIsPlaying(!isPlaying)}
-                        className="p-4 bg-indigo-600 hover:bg-indigo-500 rounded-full text-white transition-all shadow-xl"
+                        className="p-4 md:p-5 bg-indigo-600 hover:bg-indigo-500 rounded-full text-white transition-all shadow-xl active:scale-95 touch-target"
+                        aria-label={isPlaying ? "Pause slideshow" : "Play slideshow"}
                     >
                         {isPlaying ? <FiPause size={24} /> : <FiPlay size={24} />}
                     </button>
 
                     <button
                         onClick={handleNext}
-                        className="p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all"
+                        className="p-3 md:p-4 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all active:scale-95 touch-target"
+                        aria-label="Next image"
                     >
                         <FiChevronRight size={24} />
                     </button>
                 </div>
 
                 {/* Progress Bar */}
-                <div className="mt-6 max-w-2xl mx-auto">
-                    <div className="h-1 bg-white/20 rounded-full overflow-hidden">
+                <div className="mt-4 md:mt-6 max-w-2xl mx-auto">
+                    <div className="h-1 md:h-1.5 bg-white/20 rounded-full overflow-hidden">
                         <div
                             className="h-full bg-indigo-500 transition-all duration-300"
                             style={{ width: `${((currentIndex + 1) / images.length) * 100}%` }}
