@@ -30,9 +30,19 @@ const Slideshow = () => {
         setIsPlaying(false);
     };
 
+    // In Slideshow.jsx - Add a proper back button/close handler
     const handleClose = () => {
-        // Navigate back to client gallery with the access key preserved
-        navigate(`/clientGallery?accessKey=${accessKey}`, { replace: true });
+        const galleryID = location.state?.galleryID;
+        const accessKey = location.state?.accessKey;
+
+        // Navigate back to the specific gallery with the access key
+        if (galleryID && accessKey) {
+            navigate(`/clientGallery/${galleryID}?accessKey=${accessKey}`);
+        } else if (galleryID) {
+            navigate(`/clientGallery/${galleryID}`);
+        } else {
+            navigate(-1); // Fallback to previous page
+        }
     };
 
     const handleKeyDown = (e) => {

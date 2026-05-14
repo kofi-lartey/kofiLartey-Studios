@@ -15,12 +15,11 @@ import {
 } from "react-icons/fi";
 import NavBar from "../componets/NavBar";
 import Footer from "../componets/Footer";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Loader from "../components/Loader";
 import { get } from "../utils/apiCall";
 
 const ClientGallery = () => {
-    const { galleryID } = useParams();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const [selectedImage, setSelectedImage] = useState(null);
@@ -32,7 +31,7 @@ const ClientGallery = () => {
     const [galleryData, setGalleryData] = useState(null);
     const [images, setImages] = useState([]);
     const [isFindingGallery, setIsFindingGallery] = useState(true);
-    const [requiresAccessKey, setRequiresAccessKey] = useState(false);
+    const [requiresAccessKey, setRequiresAccessKey] = useState(true);
 
     // Check URL for accessKey on mount
     useEffect(() => {
@@ -40,29 +39,26 @@ const ClientGallery = () => {
         if (urlAccessKey) {
             setAccessKey(urlAccessKey);
             validateAndLoadGallery(urlAccessKey);
-        } else if (galleryID) {
-            setIsFindingGallery(false);
-            setRequiresAccessKey(true);
         } else {
             setIsFindingGallery(false);
-            setError("No gallery specified");
+            setRequiresAccessKey(true);
         }
-    }, [galleryID]);
+    }, []);
 
     const validateAndLoadGallery = async (key) => {
         setIsLoading(true);
         setError("");
         
         try {
-            // ✅ Using the correct route: gallery/access/:galleryID?accessKey=XXX
-            const response = await get(`/gallery/access/${galleryID}?accessKey=${key}`);
+            // ✅ Using the new /gallery/public endpoint with accessKey
+            const response = await get(`/gallery/public?accessKey=${key}`);
             
             console.log('🎨 Gallery access response:', response);
             
             if (response.success && response.data) {
                 const gallery = response.data;
                 setGalleryData(gallery);
-                // ✅ Set images from the response
+                // ✅ Set images from the response - using imageUrl field
                 setImages(gallery.images || []);
                 setIsAuthenticated(true);
                 setRequiresAccessKey(false);
@@ -72,19 +68,14 @@ const ClientGallery = () => {
         } catch (error) {
             console.error('Gallery access error:', error);
             
-            // Handle different error statuses
-            if (error.response?.status === 401) {
-                setError("Invalid access key. Please try again.");
-                setRequiresAccessKey(true);
+            if (error.response?.status === 404) {
+                setError("No gallery found with this access key. Please check and try again.");
             } else if (error.response?.status === 403) {
                 setError(error.response?.data?.message || "This gallery link has expired");
-                setIsFindingGallery(false);
-            } else if (error.response?.status === 404) {
-                setError(error.response?.data?.message || "Gallery not found");
-                setIsFindingGallery(false);
             } else {
                 setError(error.response?.data?.message || "Failed to load gallery");
             }
+            setRequiresAccessKey(true);
         } finally {
             setIsLoading(false);
             setIsFindingGallery(false);
@@ -111,7 +102,7 @@ const ClientGallery = () => {
     };
 
     const handleDownloadAll = () => {
-        if (!galleryData?.downloadPermission) {
+        if (!galleryData?.downloadPermission && !galleryData?.gallerySettings?.allowDownloads) {
             setError("Download permission not granted for this gallery");
             setTimeout(() => setError(""), 3000);
             return;
@@ -120,7 +111,7 @@ const ClientGallery = () => {
         images.forEach((img, index) => {
             setTimeout(() => {
                 const link = document.createElement("a");
-                link.href = img.url;
+                link.href = img.imageUrl;
                 link.download = img.originalName || `image_${index + 1}.jpg`;
                 document.body.appendChild(link);
                 link.click();
@@ -130,11 +121,12 @@ const ClientGallery = () => {
     };
 
     const handleSlideshow = () => {
-        navigate(`/clientGallery/${galleryID}/slideshow?accessKey=${accessKey}`, {
+        const currentAccessKey = accessKey;
+        navigate(`/clientGallery/slideshow?accessKey=${currentAccessKey}`, {
             state: {
-                images: images.map(img => img.url),
+                images: images.map(img => img.imageUrl),
                 galleryName: galleryData?.galleryName,
-                galleryID: galleryID
+                accessKey: currentAccessKey
             }
         });
     };
@@ -155,8 +147,8 @@ const ClientGallery = () => {
         );
     }
 
-    // Gallery not found error
-    if (error && !isAuthenticated && !requiresAccessKey) {
+    // Invalid access key error
+    if (error && !isAuthenticated && requiresAccessKey) {
         return (
             <div className="min-h-screen bg-[#050505] flex flex-col font-urbanist font-sans text-white">
                 <NavBar />
@@ -165,13 +157,13 @@ const ClientGallery = () => {
                         <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-white/5 flex items-center justify-center">
                             <FiAlertCircle size={40} className="text-gray-600" />
                         </div>
-                        <h2 className="text-2xl font-bold text-white mb-2">Gallery Not Found</h2>
+                        <h2 className="text-2xl font-bold text-white mb-2">Invalid Access Key</h2>
                         <p className="text-gray-500 text-sm mb-6">{error}</p>
                         <button
-                            onClick={() => navigate('/')}
+                            onClick={() => window.location.reload()}
                             className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-medium transition-colors"
                         >
-                            Return to Home
+                            Try Again
                         </button>
                     </div>
                 </main>
@@ -180,7 +172,7 @@ const ClientGallery = () => {
         );
     }
 
-    // Access Key Required Screen
+    // Access Key Input Screen
     if (requiresAccessKey && !isAuthenticated) {
         return (
             <div className="min-h-screen bg-[#050505] flex flex-col font-urbanist font-sans text-white">
@@ -192,9 +184,9 @@ const ClientGallery = () => {
                             <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-2xl">
                                 <FiKey size={34} className="text-white" />
                             </div>
-                            <h1 className="text-4xl font-bold text-white mb-3">Access Required</h1>
+                            <h1 className="text-4xl font-bold text-white mb-3">Enter Access Key</h1>
                             <p className="text-gray-400 text-sm">
-                                Please enter your access key to view this gallery
+                                Enter the access key provided to you to view your gallery
                             </p>
                         </div>
 
@@ -239,12 +231,6 @@ const ClientGallery = () => {
                                 </div>
                             </div>
                         </form>
-
-                        <div className="text-center mt-6">
-                            <p className="text-[9px] text-gray-600">
-                                Gallery ID: {galleryID}
-                            </p>
-                        </div>
                     </div>
                 </main>
 
@@ -275,7 +261,7 @@ const ClientGallery = () => {
                     </div>
 
                     <div className="flex flex-col items-end gap-3">
-                        {galleryData?.downloadPermission && (
+                        {(galleryData?.downloadPermission || galleryData?.gallerySettings?.allowDownloads) && (
                             <button
                                 onClick={handleDownloadAll}
                                 disabled={images.length === 0}
@@ -321,16 +307,16 @@ const ClientGallery = () => {
                                 onClick={() => setSelectedImage(img)}
                             >
                                 <img
-                                    src={img.url}
+                                    src={img.imageUrl}
                                     alt={img.imageName}
                                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                                     loading="lazy"
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-between p-6">
                                     <div className="flex justify-end">
-                                        {galleryData?.downloadPermission && (
+                                        {(galleryData?.downloadPermission || galleryData?.gallerySettings?.allowDownloads) && (
                                             <button
-                                                onClick={(e) => handleDownload(e, img.url, img.originalName)}
+                                                onClick={(e) => handleDownload(e, img.imageUrl, img.originalName)}
                                                 className="p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-indigo-600 transition-all border border-white/10 shadow-xl"
                                             >
                                                 <FiDownload size={18} />
@@ -371,8 +357,10 @@ const ClientGallery = () => {
                                     <p className="text-[10px] text-white font-mono">{selectedImage.sizeFormatted || "N/A"}</p>
                                 </div>
                                 <div className="pl-4 text-center">
-                                    <p className="text-[8px] text-gray-500 uppercase font-black">Type</p>
-                                    <p className="text-[10px] text-white font-mono">{selectedImage.mimeType?.split('/')[1] || "N/A"}</p>
+                                    <p className="text-[8px] text-gray-500 uppercase font-black">Dimensions</p>
+                                    <p className="text-[10px] text-white font-mono">
+                                        {selectedImage.dimensions?.width || "?"} × {selectedImage.dimensions?.height || "?"}
+                                    </p>
                                 </div>
                             </div>
                             <button onClick={() => setIsFavorite(!isFavorite)} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg border transition-all ${isFavorite ? 'bg-red-600 border-red-600 text-white' : 'bg-white/5 border-white/10 text-white hover:bg-white/10'}`}>
@@ -383,7 +371,7 @@ const ClientGallery = () => {
                     </div>
 
                     <div className="flex-1 relative flex items-center justify-center p-4">
-                        <img src={selectedImage.url} className="max-w-full max-h-[80vh] object-contain shadow-2xl" alt={selectedImage.imageName} />
+                        <img src={selectedImage.imageUrl} className="max-w-full max-h-[80vh] object-contain shadow-2xl" alt={selectedImage.imageName} />
                     </div>
 
                     <div className="flex items-center justify-between px-8 py-6 bg-black border-t border-white/5 z-10">
@@ -396,6 +384,12 @@ const ClientGallery = () => {
                                 <p className="text-[8px] text-gray-500 uppercase font-black mb-1">Size</p>
                                 <p className="text-[10px] text-white font-mono">{selectedImage.sizeFormatted}</p>
                             </div>
+                            {selectedImage.dimensions && (
+                                <div>
+                                    <p className="text-[8px] text-gray-500 uppercase font-black mb-1">Dimensions</p>
+                                    <p className="text-[10px] text-white font-mono">{selectedImage.dimensions.width} × {selectedImage.dimensions.height}</p>
+                                </div>
+                            )}
                         </div>
                         <div className="flex items-center gap-4">
                             <button className="text-gray-400 hover:text-white"><FiShare2 size={18} /></button>
