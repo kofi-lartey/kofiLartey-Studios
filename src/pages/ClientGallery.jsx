@@ -22,11 +22,30 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import Loader from "../components/Loader";
 import { post } from "../utils/apiCall";
 
+// Helper function to download image from URL
+const downloadImage = async (url, filename) => {
+    try {
+        // Show loading indicator (optional)
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename || 'image.jpg';
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } catch (error) {
+        console.error('Download error:', error);
+        // Fallback: open in new tab
+        window.open(url, '_blank');
+    }
+};
+
 // Slideshow Modal Component
-const SlideshowModal = ({ images, galleryName, onClose, initialIndex = 0 }) => {
+const SlideshowModal = ({ images, galleryName, onClose, initialIndex = 0, allowDownload = false }) => {
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
     const [isPlaying, setIsPlaying] = useState(true);
     const [showControls, setShowControls] = useState(true);
+    const [isDownloading, setIsDownloading] = useState(false);
     const touchStartX = useRef(0);
     const touchEndX = useRef(0);
     const controlsTimeout = useRef(null);
@@ -51,17 +70,26 @@ const SlideshowModal = ({ images, galleryName, onClose, initialIndex = 0 }) => {
         setIsPlaying(false);
     };
 
+    const handleDownloadCurrent = async () => {
+        if (!allowDownload) return;
+        setIsDownloading(true);
+        const url = images[currentIndex];
+        const filename = `gallery-image-${currentIndex + 1}.jpg`;
+        await downloadImage(url, filename);
+        setIsDownloading(false);
+    };
+
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.key === 'ArrowLeft') handlePrevious();
             if (e.key === 'ArrowRight') handleNext();
             if (e.key === 'Escape') onClose();
+            if (e.key === 'd' && allowDownload) handleDownloadCurrent();
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [handlePrevious, handleNext, onClose]);
+    }, [handlePrevious, handleNext, onClose, handleDownloadCurrent, allowDownload]);
 
-    // Touch swipe handlers
     const handleTouchStart = (e) => {
         touchStartX.current = e.touches[0].clientX;
     };
@@ -76,9 +104,9 @@ const SlideshowModal = ({ images, galleryName, onClose, initialIndex = 0 }) => {
         
         if (Math.abs(diff) > swipeThreshold) {
             if (diff > 0) {
-                handleNext(); // Swipe left -> next
+                handleNext();
             } else {
-                handlePrevious(); // Swipe right -> previous
+                handlePrevious();
             }
         }
     };
@@ -97,7 +125,6 @@ const SlideshowModal = ({ images, galleryName, onClose, initialIndex = 0 }) => {
             role="dialog"
             aria-label="Image slideshow"
         >
-            {/* Header Controls */}
             <div className={`absolute top-0 left-0 right-0 p-4 md:p-6 bg-gradient-to-b from-black/80 to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
                 <div className="flex justify-between items-center">
                     <div className="text-white px-2">
@@ -111,17 +138,28 @@ const SlideshowModal = ({ images, galleryName, onClose, initialIndex = 0 }) => {
                             </p>
                         )}
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="text-white hover:bg-white/10 p-2 md:p-3 rounded-full transition-all active:scale-95 touch-target"
-                        aria-label="Close slideshow"
-                    >
-                        <FiX size={24} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {allowDownload && (
+                            <button
+                                onClick={handleDownloadCurrent}
+                                disabled={isDownloading}
+                                className="text-white hover:bg-white/10 p-2 md:p-3 rounded-full transition-all active:scale-95 disabled:opacity-50"
+                                aria-label="Download current image"
+                            >
+                                <FiDownload size={20} />
+                            </button>
+                        )}
+                        <button
+                            onClick={onClose}
+                            className="text-white hover:bg-white/10 p-2 md:p-3 rounded-full transition-all active:scale-95"
+                            aria-label="Close slideshow"
+                        >
+                            <FiX size={24} />
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            {/* Main Image */}
             <div className="flex-1 flex items-center justify-center p-4">
                 <img
                     src={images[currentIndex]}
@@ -131,12 +169,11 @@ const SlideshowModal = ({ images, galleryName, onClose, initialIndex = 0 }) => {
                 />
             </div>
 
-            {/* Bottom Controls */}
             <div className={`absolute bottom-0 left-0 right-0 p-4 md:p-6 bg-gradient-to-t from-black/80 to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
                 <div className="flex items-center justify-center gap-4 md:gap-6">
                     <button
                         onClick={handlePrevious}
-                        className="p-3 md:p-4 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all active:scale-95 touch-target"
+                        className="p-3 md:p-4 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all active:scale-95"
                         aria-label="Previous image"
                     >
                         <FiChevronLeft size={24} />
@@ -144,7 +181,7 @@ const SlideshowModal = ({ images, galleryName, onClose, initialIndex = 0 }) => {
 
                     <button
                         onClick={() => setIsPlaying(!isPlaying)}
-                        className="p-4 md:p-5 bg-indigo-600 hover:bg-indigo-500 rounded-full text-white transition-all shadow-xl active:scale-95 touch-target"
+                        className="p-4 md:p-5 bg-indigo-600 hover:bg-indigo-500 rounded-full text-white transition-all shadow-xl active:scale-95"
                         aria-label={isPlaying ? "Pause slideshow" : "Play slideshow"}
                     >
                         {isPlaying ? <FiPause size={24} /> : <FiPlay size={24} />}
@@ -152,14 +189,13 @@ const SlideshowModal = ({ images, galleryName, onClose, initialIndex = 0 }) => {
 
                     <button
                         onClick={handleNext}
-                        className="p-3 md:p-4 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all active:scale-95 touch-target"
+                        className="p-3 md:p-4 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all active:scale-95"
                         aria-label="Next image"
                     >
                         <FiChevronRight size={24} />
                     </button>
                 </div>
 
-                {/* Progress Bar */}
                 <div className="mt-4 md:mt-6 max-w-2xl mx-auto">
                     <div className="h-1 md:h-1.5 bg-white/20 rounded-full overflow-hidden">
                         <div
@@ -188,6 +224,7 @@ const ClientGallery = () => {
     const [requiresAccessKey, setRequiresAccessKey] = useState(true);
     const [showSlideshow, setShowSlideshow] = useState(false);
     const [slideshowStartIndex, setSlideshowStartIndex] = useState(0);
+    const [isDownloading, setIsDownloading] = useState(false);
 
     // Check URL for accessKey on mount
     useEffect(() => {
@@ -245,33 +282,107 @@ const ClientGallery = () => {
         await validateAndLoadGallery(accessKey.trim());
     };
 
-    const handleDownload = (e, url, filename) => {
+    // ✅ Fixed: Download single image using fetch blob
+    const handleDownload = async (e, url, filename) => {
         e.stopPropagation();
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = filename || "kofiLartey-capture.jpg";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
-    const handleDownloadAll = () => {
-        if (!galleryData?.downloadPermission && !galleryData?.gallerySettings?.allowDownloads) {
+        
+        if (!isDownloadAllowed) {
             setError("Download permission not granted for this gallery");
             setTimeout(() => setError(""), 3000);
             return;
         }
 
-        images.forEach((img, index) => {
-            setTimeout(() => {
-                const link = document.createElement("a");
-                link.href = img.imageUrl;
-                link.download = img.originalName || `image_${index + 1}.jpg`;
+        setIsDownloading(true);
+        try {
+            // Fetch the image as a blob
+            const response = await fetch(url);
+            const blob = await response.blob();
+            
+            // Create a blob URL
+            const blobUrl = window.URL.createObjectURL(blob);
+            
+            // Create download link
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = filename || `image_${Date.now()}.jpg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            // Clean up the blob URL
+            window.URL.revokeObjectURL(blobUrl);
+        } catch (error) {
+            console.error('Download error:', error);
+            // Fallback: try opening in new tab
+            window.open(url, '_blank');
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
+    // ✅ Fixed: Download all images as a zip (using JSZip for multiple files)
+    const handleDownloadAll = async () => {
+        if (!isDownloadAllowed) {
+            setError("Download permission not granted for this gallery");
+            setTimeout(() => setError(""), 3000);
+            return;
+        }
+
+        if (images.length === 0) {
+            setError("No images to download");
+            return;
+        }
+
+        setIsDownloading(true);
+        setError("");
+
+        try {
+            // Dynamically import JSZip
+            const JSZip = (await import('jszip')).default;
+            const zip = new JSZip();
+            
+            let downloadedCount = 0;
+            
+            // Show progress in console
+            console.log(`Starting download of ${images.length} images...`);
+            
+            for (let i = 0; i < images.length; i++) {
+                const img = images[i];
+                try {
+                    const response = await fetch(img.imageUrl);
+                    const blob = await response.blob();
+                    const filename = img.originalName || `image_${i + 1}.jpg`;
+                    zip.file(filename, blob);
+                    downloadedCount++;
+                    console.log(`Downloaded ${downloadedCount}/${images.length}: ${filename}`);
+                } catch (err) {
+                    console.error(`Failed to download ${img.imageName}:`, err);
+                }
+            }
+            
+            if (downloadedCount > 0) {
+                const zipBlob = await zip.generateAsync({ type: 'blob' });
+                const zipUrl = window.URL.createObjectURL(zipBlob);
+                const link = document.createElement('a');
+                link.href = zipUrl;
+                link.download = `${galleryData?.galleryName || 'gallery'}_images.zip`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-            }, index * 500);
-        });
+                window.URL.revokeObjectURL(zipUrl);
+                
+                setError(`${downloadedCount} of ${images.length} images downloaded successfully!`);
+                setTimeout(() => setError(""), 3000);
+            } else {
+                throw new Error("No images could be downloaded");
+            }
+        } catch (error) {
+            console.error('Download all error:', error);
+            setError("Failed to download images. Please try again.");
+            setTimeout(() => setError(""), 3000);
+        } finally {
+            setIsDownloading(false);
+        }
     };
 
     const handleSlideshow = () => {
@@ -279,6 +390,9 @@ const ClientGallery = () => {
         setSlideshowStartIndex(0);
         setShowSlideshow(true);
     };
+
+    // Check if download is allowed
+    const isDownloadAllowed = galleryData?.downloadPermission === true || galleryData?.gallerySettings?.allowDownloads === true;
 
     // Loading state
     if (isFindingGallery || isLoading) {
@@ -406,17 +520,23 @@ const ClientGallery = () => {
                         <div className="flex flex-wrap items-center gap-6 text-gray-400 text-xs font-bold uppercase tracking-widest">
                             <span className="flex items-center gap-2"><FiCamera className="text-indigo-500" /> {galleryData?.studioName || "kofiLartey Studio"}</span>
                             <span className="flex items-center gap-2"><FiClock className="text-indigo-500" /> {images.length} High-Resolution Captures</span>
+                            {!isDownloadAllowed && (
+                                <span className="flex items-center gap-2 text-amber-500/70">
+                                    <FiDownload size={12} /> Download Disabled
+                                </span>
+                            )}
                         </div>
                     </div>
 
                     <div className="flex flex-col items-end gap-3">
-                        {(galleryData?.downloadPermission || galleryData?.gallerySettings?.allowDownloads) && (
+                        {isDownloadAllowed && (
                             <button
                                 onClick={handleDownloadAll}
-                                disabled={images.length === 0}
+                                disabled={images.length === 0 || isDownloading}
                                 className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-xl font-bold text-xs flex items-center gap-3 transition-all shadow-xl shadow-indigo-600/20 active:scale-95 w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                <FiDownload className="text-sm" /> Download All Gallery
+                                <FiDownload className="text-sm" /> 
+                                {isDownloading ? 'Preparing Download...' : 'Download All Gallery'}
                             </button>
                         )}
                         {galleryData?.expirationPeriod && galleryData.expirationPeriod !== "Never Expire" && galleryData.expiresAt && (
@@ -463,10 +583,11 @@ const ClientGallery = () => {
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-between p-6">
                                     <div className="flex justify-end">
-                                        {(galleryData?.downloadPermission || galleryData?.gallerySettings?.allowDownloads) && (
+                                        {isDownloadAllowed && (
                                             <button
                                                 onClick={(e) => handleDownload(e, img.imageUrl, img.originalName)}
-                                                className="p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-indigo-600 transition-all border border-white/10 shadow-xl"
+                                                disabled={isDownloading}
+                                                className="p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-indigo-600 transition-all border border-white/10 shadow-xl disabled:opacity-50"
                                             >
                                                 <FiDownload size={18} />
                                             </button>
@@ -492,6 +613,7 @@ const ClientGallery = () => {
                     galleryName={galleryData?.galleryName}
                     onClose={() => setShowSlideshow(false)}
                     initialIndex={slideshowStartIndex}
+                    allowDownload={isDownloadAllowed}
                 />
             )}
 
