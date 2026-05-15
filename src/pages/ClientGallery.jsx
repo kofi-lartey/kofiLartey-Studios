@@ -25,17 +25,18 @@ import { post } from "../utils/apiCall";
 // Helper function to download image from URL
 const downloadImage = async (url, filename) => {
     try {
-        // Show loading indicator (optional)
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.href = url;
+        link.href = blobUrl;
         link.download = filename || 'image.jpg';
-        link.target = '_blank';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
     } catch (error) {
         console.error('Download error:', error);
-        // Fallback: open in new tab
         window.open(url, '_blank');
     }
 };
@@ -282,7 +283,7 @@ const ClientGallery = () => {
         await validateAndLoadGallery(accessKey.trim());
     };
 
-    // ✅ Fixed: Download single image using fetch blob
+    // Download single image
     const handleDownload = async (e, url, filename) => {
         e.stopPropagation();
         
@@ -294,33 +295,17 @@ const ClientGallery = () => {
 
         setIsDownloading(true);
         try {
-            // Fetch the image as a blob
-            const response = await fetch(url);
-            const blob = await response.blob();
-            
-            // Create a blob URL
-            const blobUrl = window.URL.createObjectURL(blob);
-            
-            // Create download link
-            const link = document.createElement('a');
-            link.href = blobUrl;
-            link.download = filename || `image_${Date.now()}.jpg`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            // Clean up the blob URL
-            window.URL.revokeObjectURL(blobUrl);
+            await downloadImage(url, filename || `image_${Date.now()}.jpg`);
         } catch (error) {
             console.error('Download error:', error);
-            // Fallback: try opening in new tab
-            window.open(url, '_blank');
+            setError("Failed to download image. Please try again.");
+            setTimeout(() => setError(""), 3000);
         } finally {
             setIsDownloading(false);
         }
     };
 
-    // ✅ Fixed: Download all images as a zip (using JSZip for multiple files)
+    // Download all images as a zip
     const handleDownloadAll = async () => {
         if (!isDownloadAllowed) {
             setError("Download permission not granted for this gallery");
@@ -337,14 +322,10 @@ const ClientGallery = () => {
         setError("");
 
         try {
-            // Dynamically import JSZip
             const JSZip = (await import('jszip')).default;
             const zip = new JSZip();
             
             let downloadedCount = 0;
-            
-            // Show progress in console
-            console.log(`Starting download of ${images.length} images...`);
             
             for (let i = 0; i < images.length; i++) {
                 const img = images[i];
@@ -354,7 +335,6 @@ const ClientGallery = () => {
                     const filename = img.originalName || `image_${i + 1}.jpg`;
                     zip.file(filename, blob);
                     downloadedCount++;
-                    console.log(`Downloaded ${downloadedCount}/${images.length}: ${filename}`);
                 } catch (err) {
                     console.error(`Failed to download ${img.imageName}:`, err);
                 }
@@ -507,14 +487,14 @@ const ClientGallery = () => {
         <div className="min-h-screen bg-[#050505] flex flex-col font-urbanist font-sans text-white selection:bg-indigo-500/30">
             <NavBar />
 
-            <main className="flex-1 max-w-7xl w-full mx-auto px-6 pt-32 pb-12 space-y-12">
+            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 pt-32 pb-12 space-y-12">
                 {/* Header Section */}
                 <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-8">
                     <div className="space-y-4">
                         <div className="flex items-center gap-2">
                             <span className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400">✨ Private Collection</span>
                         </div>
-                        <h1 className="text-5xl md:text-7xl font-bold tracking-tighter text-white">
+                        <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold tracking-tighter text-white">
                             {galleryData?.galleryName || "Client Gallery"}
                         </h1>
                         <div className="flex flex-wrap items-center gap-6 text-gray-400 text-xs font-bold uppercase tracking-widest">
@@ -533,7 +513,7 @@ const ClientGallery = () => {
                             <button
                                 onClick={handleDownloadAll}
                                 disabled={images.length === 0 || isDownloading}
-                                className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-xl font-bold text-xs flex items-center gap-3 transition-all shadow-xl shadow-indigo-600/20 active:scale-95 w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-bold text-xs flex items-center gap-3 transition-all shadow-xl shadow-indigo-600/20 active:scale-95 w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <FiDownload className="text-sm" /> 
                                 {isDownloading ? 'Preparing Download...' : 'Download All Gallery'}
@@ -568,7 +548,7 @@ const ClientGallery = () => {
                         <p className="text-gray-600 text-xs mt-2">Check back later for updates.</p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
                         {images.map((img, index) => (
                             <div
                                 key={img.imageId || index}
@@ -581,23 +561,41 @@ const ClientGallery = () => {
                                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                                     loading="lazy"
                                 />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-between p-6">
+                                {/* Overlay that appears on hover (desktop) or always visible on mobile */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 sm:opacity-0 transition-opacity duration-300 flex flex-col justify-between p-4 sm:p-6">
                                     <div className="flex justify-end">
                                         {isDownloadAllowed && (
                                             <button
                                                 onClick={(e) => handleDownload(e, img.imageUrl, img.originalName)}
                                                 disabled={isDownloading}
-                                                className="p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-indigo-600 transition-all border border-white/10 shadow-xl disabled:opacity-50"
+                                                className="p-2 sm:p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-indigo-600 transition-all border border-white/10 shadow-xl active:scale-95 disabled:opacity-50"
+                                                aria-label="Download image"
                                             >
-                                                <FiDownload size={18} />
+                                                <FiDownload size={16} className="sm:w-[18px] sm:h-[18px]" />
                                             </button>
                                         )}
                                     </div>
                                     <div className="flex items-center justify-between">
-                                        <p className="text-white font-bold text-sm tracking-tight">{img.imageName || "Image"}</p>
-                                        <FiMaximize2 className="text-white/70" />
+                                        <p className="text-white font-bold text-xs sm:text-sm tracking-tight truncate flex-1 mr-2">
+                                            {img.imageName || "Image"}
+                                        </p>
+                                        <FiMaximize2 className="text-white/70 w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
                                     </div>
                                 </div>
+                                
+                                {/* Mobile: Always visible download button at bottom right */}
+                                {isDownloadAllowed && (
+                                    <div className="absolute bottom-2 right-2 sm:hidden">
+                                        <button
+                                            onClick={(e) => handleDownload(e, img.imageUrl, img.originalName)}
+                                            disabled={isDownloading}
+                                            className="p-2 bg-indigo-600/90 backdrop-blur-md rounded-full text-white active:scale-95 shadow-lg disabled:opacity-50"
+                                            aria-label="Download image"
+                                        >
+                                            <FiDownload size={14} />
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -617,64 +615,94 @@ const ClientGallery = () => {
                 />
             )}
 
-            {/* VIEWER OVERLAY */}
+            {/* VIEWER OVERLAY - Fixed with download button */}
             {selectedImage && (
                 <div className="fixed inset-0 z-[100] bg-black flex flex-col transition-opacity duration-300">
-                    <div className="flex items-center justify-between px-6 py-4 bg-black/50 backdrop-blur-md z-10 border-b border-white/5">
-                        <div className="flex items-center gap-6">
-                            <button onClick={() => setSelectedImage(null)} className="text-white hover:bg-white/10 p-2 rounded-full transition-all">
-                                <FiX size={24} />
-                            </button>
-                            <div className="hidden md:block">
-                                <h2 className="text-white font-bold text-sm">{galleryData?.galleryName || "kofiLartey Studio"}</h2>
-                                <p className="text-[9px] text-gray-400 uppercase tracking-widest font-black">Client Gallery Access</p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                            <div className="hidden sm:flex bg-white/5 border border-white/10 rounded-lg px-4 py-2 divide-x divide-white/10">
-                                <div className="pr-4 text-center">
-                                    <p className="text-[8px] text-gray-500 uppercase font-black">Size</p>
-                                    <p className="text-[10px] text-white font-mono">{selectedImage.sizeFormatted || "N/A"}</p>
-                                </div>
-                                <div className="pl-4 text-center">
-                                    <p className="text-[8px] text-gray-500 uppercase font-black">Dimensions</p>
-                                    <p className="text-[10px] text-white font-mono">
-                                        {selectedImage.dimensions?.width || "?"} × {selectedImage.dimensions?.height || "?"}
-                                    </p>
-                                </div>
-                            </div>
-                            <button onClick={() => setIsFavorite(!isFavorite)} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg border transition-all ${isFavorite ? 'bg-red-600 border-red-600 text-white' : 'bg-white/5 border-white/10 text-white hover:bg-white/10'}`}>
-                                <FiHeart size={14} fill={isFavorite ? "currentColor" : "none"} />
-                                <span className="text-[10px] font-bold uppercase tracking-widest">Favorite</span>
+                    <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 bg-black/50 backdrop-blur-md z-10 border-b border-white/5">
+                        <button 
+                            onClick={() => setSelectedImage(null)} 
+                            className="text-white hover:bg-white/10 p-2 rounded-full transition-all active:scale-95"
+                            aria-label="Close viewer"
+                        >
+                            <FiX size={20} className="sm:w-6 sm:h-6" />
+                        </button>
+                        
+                        <div className="flex items-center gap-2 sm:gap-3">
+                            {/* Download button in viewer overlay */}
+                            {isDownloadAllowed && (
+                                <button
+                                    onClick={(e) => handleDownload(e, selectedImage.imageUrl, selectedImage.originalName)}
+                                    disabled={isDownloading}
+                                    className="flex items-center gap-1 sm:gap-2 px-3 sm:px-5 py-1.5 sm:py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white transition-all active:scale-95 disabled:opacity-50"
+                                    aria-label="Download image"
+                                >
+                                    <FiDownload size={14} className="sm:w-4 sm:h-4" />
+                                    <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider hidden sm:inline">Download</span>
+                                </button>
+                            )}
+                            
+                            <button 
+                                onClick={() => setIsFavorite(!isFavorite)} 
+                                className={`flex items-center gap-1 sm:gap-2 px-3 sm:px-5 py-1.5 sm:py-2.5 rounded-lg border transition-all ${
+                                    isFavorite 
+                                        ? 'bg-red-600 border-red-600 text-white' 
+                                        : 'bg-white/5 border-white/10 text-white hover:bg-white/10'
+                                }`}
+                                aria-label="Favorite"
+                            >
+                                <FiHeart size={14} className="sm:w-4 sm:h-4" fill={isFavorite ? "currentColor" : "none"} />
+                                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider hidden sm:inline">Favorite</span>
                             </button>
                         </div>
                     </div>
 
                     <div className="flex-1 relative flex items-center justify-center p-4">
-                        <img src={selectedImage.imageUrl} className="max-w-full max-h-[80vh] object-contain shadow-2xl" alt={selectedImage.imageName} />
+                        <img 
+                            src={selectedImage.imageUrl} 
+                            className="max-w-full max-h-[80vh] object-contain shadow-2xl" 
+                            alt={selectedImage.imageName} 
+                        />
                     </div>
 
-                    <div className="flex items-center justify-between px-8 py-6 bg-black border-t border-white/5 z-10">
-                        <div className="flex gap-12">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-8 py-4 sm:py-6 bg-black border-t border-white/5 z-10 gap-3 sm:gap-0">
+                        <div className="flex flex-wrap gap-4 sm:gap-12">
                             <div>
                                 <p className="text-[8px] text-gray-500 uppercase font-black mb-1">Filename</p>
-                                <p className="text-[10px] text-white font-mono">{selectedImage.originalName || selectedImage.imageName}</p>
+                                <p className="text-[9px] sm:text-[10px] text-white font-mono truncate max-w-[150px] sm:max-w-none">
+                                    {selectedImage.originalName || selectedImage.imageName}
+                                </p>
                             </div>
                             <div>
                                 <p className="text-[8px] text-gray-500 uppercase font-black mb-1">Size</p>
-                                <p className="text-[10px] text-white font-mono">{selectedImage.sizeFormatted}</p>
+                                <p className="text-[9px] sm:text-[10px] text-white font-mono">{selectedImage.sizeFormatted || "N/A"}</p>
                             </div>
                             {selectedImage.dimensions && (
                                 <div>
                                     <p className="text-[8px] text-gray-500 uppercase font-black mb-1">Dimensions</p>
-                                    <p className="text-[10px] text-white font-mono">{selectedImage.dimensions.width} × {selectedImage.dimensions.height}</p>
+                                    <p className="text-[9px] sm:text-[10px] text-white font-mono">
+                                        {selectedImage.dimensions.width} × {selectedImage.dimensions.height}
+                                    </p>
                                 </div>
                             )}
                         </div>
                         <div className="flex items-center gap-4">
-                            <button className="text-gray-400 hover:text-white"><FiShare2 size={18} /></button>
-                            <button className="text-gray-400 hover:text-white"><FiInfo size={18} /></button>
+                            {/* Mobile download button in footer */}
+                            {isDownloadAllowed && (
+                                <button
+                                    onClick={(e) => handleDownload(e, selectedImage.imageUrl, selectedImage.originalName)}
+                                    disabled={isDownloading}
+                                    className="sm:hidden flex items-center gap-2 px-4 py-2 bg-indigo-600 rounded-lg text-white text-xs font-bold active:scale-95"
+                                >
+                                    <FiDownload size={14} />
+                                    Download
+                                </button>
+                            )}
+                            <button className="text-gray-400 hover:text-white transition-colors">
+                                <FiShare2 size={16} className="sm:w-[18px] sm:h-[18px]" />
+                            </button>
+                            <button className="text-gray-400 hover:text-white transition-colors">
+                                <FiInfo size={16} className="sm:w-[18px] sm:h-[18px]" />
+                            </button>
                         </div>
                     </div>
                 </div>
