@@ -354,11 +354,11 @@ const ImageUploadZone = ({ onUploadComplete, galleryName, galleryId, onGalleryCh
         <div className="w-14 h-14 md:w-16 md:h-16 rounded-xl md:rounded-2xl bg-white/5 flex items-center justify-center text-indigo-400 mb-4 md:mb-6 group-hover:scale-110 transition-transform shadow-xl touch-target">
           {isMobile ? <FiPlus size={32} /> : <FiUpload size={28} />}
         </div>
-        
+
         <h2 className="text-xl md:text-3xl font-bold text-white mb-2">
           {isMobile ? 'Tap to Upload Images' : 'Drag & Drop Images Here'}
         </h2>
-        
+
         <p className="text-gray-500 text-xs md:text-sm mb-6 md:mb-8">
           {selectedGallery?.name ? `Uploading to: ${selectedGallery.name}` : 'Select or create a gallery first'} • Supported formats: JPG, PNG, WebP, GIF
         </p>
@@ -366,15 +366,14 @@ const ImageUploadZone = ({ onUploadComplete, galleryName, galleryId, onGalleryCh
         {/* Mobile file input - always visible */}
         <input
           type="file"
-          accept="image/*"
+          accept="image/jpeg, image/png, image/webp, image/gif"
           multiple
-          capture="environment"
           onChange={handleFileSelect}
           className="hidden"
           id="file-upload"
           disabled={showGalleryInput}
         />
-        
+
         <label
           htmlFor="file-upload"
           className={`px-6 md:px-8 py-3 md:py-3 border border-white/10 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-widest hover:bg-white hover:text-black transition-all cursor-pointer inline-block touch-target active:scale-95 ${showGalleryInput ? 'opacity-50 cursor-not-allowed' : ''}`}
