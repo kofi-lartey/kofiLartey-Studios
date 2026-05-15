@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import {
-  FiSearch, FiUserPlus, FiMoreHorizontal, FiCopy, FiCheck,
-  FiExternalLink, FiUsers, FiFolder, FiHardDrive, FiTrash2,
-  FiKey, FiMail, FiImage, FiAlertCircle, FiX, FiRefreshCw,
+import { 
+  FiSearch, FiUserPlus, FiMoreHorizontal, FiCopy, FiCheck, 
+  FiExternalLink, FiUsers, FiFolder, FiHardDrive, FiTrash2, 
+  FiKey, FiMail, FiImage, FiAlertCircle, FiX, FiRefreshCw, 
   FiCalendar, FiEdit2, FiSave, FiUser, FiAtSign, FiLock,
-  FiCamera, FiClock, FiMenu, FiLink, FiDownload
+  FiCamera, FiClock, FiMenu, FiLink, FiDownload, FiEye,
+  FiBarChart2
 } from "react-icons/fi";
 import Sidebar from "../componets/Sidebar";
 import DashboardNavbar from "../componets/DashboardNavbar";
@@ -18,9 +19,12 @@ const Clients = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [clients, setClients] = useState([]);
   const [stats, setStats] = useState({
-    totalClients: 0,
     totalGalleries: 0,
-    totalStorage: 0
+    activeGalleries: 0,
+    totalImages: 0,
+    totalViews: 0,
+    totalDownloads: 0,
+    totalStorage: "0.0"
   });
   const [isLoading, setIsLoading] = useState(true);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -40,7 +44,7 @@ const Clients = () => {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const mobileMenu = useMobileMenu();
-
+  
   // Edit form state
   const [editFormData, setEditFormData] = useState({
     galleryName: "",
@@ -51,70 +55,68 @@ const Clients = () => {
     allowDownloads: true
   });
 
+  // Fetch stats on mount
   useEffect(() => {
     fetchStats();
   }, []);
 
-  // Load clients from API
+  // Load clients when page changes
   useEffect(() => {
     loadClients();
   }, [currentPage]);
-
 
   const fetchStats = async () => {
     try {
       const response = await get('/gallery/all/stats');
       console.log('📊 Stats response:', response);
-
+      
       if (response.success && response.data?.overview) {
         const { overview } = response.data;
         setStats({
-          totalClients: overview.totalGalleries || 0,
-          totalGalleries: overview.activeGalleries || 0,
-          totalStorage: formatStorageSize(overview.totalStorageUsed || '0 KB'),
-          // Additional stats you can use
+          totalGalleries: overview.totalGalleries || 0,
+          activeGalleries: overview.activeGalleries || 0,
           totalImages: overview.totalImages || 0,
           totalViews: overview.totalViews || 0,
-          totalDownloads: overview.totalDownloads || 0
+          totalDownloads: overview.totalDownloads || 0,
+          totalStorage: formatStorageSize(overview.totalStorageUsed || '0 KB')
         });
       }
     } catch (error) {
       console.error('Failed to fetch stats:', error);
-      // Keep default stats on error
     }
   };
 
   const formatStorageSize = (storageString) => {
     if (!storageString) return '0.0';
-
+    
     const match = storageString.match(/^([\d.]+)\s*(KB|MB|GB|TB)$/i);
     if (!match) return '0.0';
-
+    
     const value = parseFloat(match[1]);
     const unit = match[2].toUpperCase();
-
-    switch (unit) {
-      case 'KB': return (value / (1024 * 1024)).toFixed(1);
-      case 'MB': return (value / 1024).toFixed(1);
-      case 'GB': return value.toFixed(1);
-      case 'TB': return (value * 1024).toFixed(1);
-      default: return '0.0';
+    
+    switch(unit) {
+      case 'KB': return (value / (1024 * 1024)).toFixed(2);
+      case 'MB': return (value / 1024).toFixed(2);
+      case 'GB': return value.toFixed(2);
+      case 'TB': return (value * 1024).toFixed(2);
+      default: return '0.00';
     }
   };
 
   const loadClients = async () => {
     setIsLoading(true);
     setError("");
-
+    
     try {
       const response = await get(`/gallery/user/details?page=${currentPage}&limit=10`);
-
+      
       console.log('API Response:', response);
-
+      
       if (response.success) {
         let galleries = [];
         let paginationData = null;
-
+        
         if (Array.isArray(response.data)) {
           galleries = response.data;
           paginationData = response.pagination;
@@ -128,10 +130,10 @@ const Clients = () => {
           galleries = [];
           paginationData = response.pagination;
         }
-
+        
         const clientList = galleries.map(gallery => ({
-          id: gallery._id || gallery.galleryInfo?.id || gallery.galleryInfo?.galleryID,
-          galleryId: gallery._id || gallery.galleryInfo?.id || gallery.galleryInfo?.galleryID,
+          id: gallery._id,
+          galleryId: gallery._id,
           galleryID: gallery.galleryInfo?.galleryID || gallery.id,
           name: gallery.clientDetails?.clientName || gallery.clientDetails?.name || 'N/A',
           email: gallery.clientDetails?.email || 'N/A',
@@ -149,9 +151,9 @@ const Clients = () => {
           downloadPermissions: gallery.galleryInfo?.settings?.allowDownloads || true,
           originalData: gallery
         }));
-
+        
         setClients(clientList);
-
+        
         if (paginationData) {
           setPagination({
             currentPage: paginationData.currentPage || 1,
@@ -162,15 +164,6 @@ const Clients = () => {
             hasPrevPage: paginationData.hasPrevPage || false
           });
         }
-
-        const totalClients = paginationData?.totalItems || clientList.length;
-        const totalGalleries = paginationData?.totalItems || clientList.length;
-
-        setStats({
-          totalClients,
-          totalGalleries,
-          totalStorage: "0.0"
-        });
       } else {
         throw new Error(response.message || "Failed to load galleries");
       }
@@ -190,22 +183,22 @@ const Clients = () => {
 
   const handleDeleteGallery = async () => {
     if (!selectedGallery) return;
-
+    
     if (deleteConfirmText !== "DELETE") {
       setError("Please type DELETE to confirm");
       return;
     }
-
+    
     setDeleteLoading(true);
     try {
-      // Use the correct delete route: /gallery/main/:id
       const response = await del(`/gallery/main/${selectedGallery.galleryId}`);
-
+      
       if (response.success) {
         setShowDeleteModal(false);
         setSelectedGallery(null);
         setDeleteConfirmText("");
         await loadClients();
+        await fetchStats(); // Refresh stats
       } else {
         setError(response.message || "Failed to delete gallery");
       }
@@ -232,7 +225,7 @@ const Clients = () => {
 
   const handleUpdateGallery = async () => {
     if (!selectedGallery) return;
-
+    
     setEditLoading(true);
     try {
       const updateData = {
@@ -247,13 +240,14 @@ const Clients = () => {
           allowDownloads: editFormData.allowDownloads
         }
       };
-
+      
       const response = await put(`/gallery/${selectedGallery.galleryId}`, updateData);
-
+      
       if (response.success) {
         setShowEditModal(false);
         setSelectedGallery(null);
         await loadClients();
+        await fetchStats(); // Refresh stats
       } else {
         setError(response.message || "Failed to update gallery");
       }
@@ -282,14 +276,14 @@ const Clients = () => {
     setEditFormData({ ...editFormData, accessKey: newKey });
   };
 
-  const filteredClients = clients.filter(client =>
+  const filteredClients = clients.filter(client => 
     client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     client.galleryName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getStatusColor = (status) => {
-    switch (status) {
+    switch(status) {
       case 'Active': return 'text-green-400 border-green-400/20 bg-green-400/5';
       case 'Expired': return 'text-red-400 border-red-400/20 bg-red-400/5';
       default: return 'text-gray-400 border-gray-400/20 bg-gray-400/5';
@@ -305,12 +299,12 @@ const Clients = () => {
     });
   };
 
-  // Delete Confirmation Modal - UPDATED
+  // Delete Confirmation Modal
   const DeleteModal = () => {
     if (!showDeleteModal || !selectedGallery) return null;
-
+    
     const isConfirmValid = deleteConfirmText === "DELETE";
-
+    
     return (
       <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
         <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -323,7 +317,7 @@ const Clients = () => {
                 </div>
                 <h3 className="text-xl font-bold text-white">Delete Gallery</h3>
               </div>
-              <button
+              <button 
                 onClick={() => {
                   setShowDeleteModal(false);
                   setDeleteConfirmText("");
@@ -351,7 +345,7 @@ const Clients = () => {
             {/* Gallery Details */}
             <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4 space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">Gallery Details</h4>
-
+              
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="text-[9px] uppercase text-gray-600">Gallery Name</p>
@@ -390,7 +384,7 @@ const Clients = () => {
               </div>
             </div>
 
-            {/* What Will Be Deleted */}
+            {/* What Will Be Lost */}
             <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4">
               <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">What Will Be Lost</h4>
               <div className="space-y-2">
@@ -427,10 +421,11 @@ const Clients = () => {
                 value={deleteConfirmText}
                 onChange={(e) => setDeleteConfirmText(e.target.value)}
                 placeholder="Type DELETE to confirm"
-                className={`w-full bg-black/40 border rounded-xl px-4 py-3 text-sm font-bold uppercase tracking-wider outline-none transition-all ${deleteConfirmText === "DELETE"
-                  ? 'border-red-500 text-red-400'
-                  : 'border-white/10 text-gray-400'
-                  }`}
+                className={`w-full bg-black/40 border rounded-xl px-4 py-3 text-sm font-bold uppercase tracking-wider outline-none transition-all ${
+                  deleteConfirmText === "DELETE" 
+                    ? 'border-red-500 text-red-400' 
+                    : 'border-white/10 text-gray-400'
+                }`}
                 autoFocus
               />
             </div>
@@ -451,10 +446,11 @@ const Clients = () => {
               <button
                 onClick={handleDeleteGallery}
                 disabled={!isConfirmValid || deleteLoading}
-                className={`flex-1 px-4 py-3 rounded-xl transition-all text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 ${isConfirmValid && !deleteLoading
-                  ? 'bg-red-600 hover:bg-red-500 text-white'
-                  : 'bg-red-600/20 text-red-400/50 cursor-not-allowed'
-                  }`}
+                className={`flex-1 px-4 py-3 rounded-xl transition-all text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 ${
+                  isConfirmValid && !deleteLoading
+                    ? 'bg-red-600 hover:bg-red-500 text-white'
+                    : 'bg-red-600/20 text-red-400/50 cursor-not-allowed'
+                }`}
               >
                 {deleteLoading ? (
                   <>
@@ -475,10 +471,10 @@ const Clients = () => {
     );
   };
 
-  // Edit Gallery Modal - Keep exactly as is
+  // Edit Gallery Modal
   const EditModal = () => {
     if (!showEditModal) return null;
-
+    
     return (
       <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
         <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl max-w-2xl w-full p-6 shadow-2xl">
@@ -489,14 +485,14 @@ const Clients = () => {
               </div>
               <h3 className="text-xl font-bold text-white">Edit Gallery</h3>
             </div>
-            <button
+            <button 
               onClick={() => setShowEditModal(false)}
               className="text-gray-500 hover:text-white transition-colors"
             >
               <FiX size={20} />
             </button>
           </div>
-
+          
           <div className="space-y-6">
             <div>
               <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4 flex items-center gap-2">
@@ -508,7 +504,7 @@ const Clients = () => {
                   <input
                     type="text"
                     value={editFormData.galleryName}
-                    onChange={(e) => setEditFormData({ ...editFormData, galleryName: e.target.value })}
+                    onChange={(e) => setEditFormData({...editFormData, galleryName: e.target.value})}
                     className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-indigo-500 outline-none"
                     placeholder="Gallery Name"
                   />
@@ -517,7 +513,7 @@ const Clients = () => {
                   <label className="block text-xs text-gray-500 mb-2">Expiration Period</label>
                   <select
                     value={editFormData.expirationPeriod}
-                    onChange={(e) => setEditFormData({ ...editFormData, expirationPeriod: e.target.value })}
+                    onChange={(e) => setEditFormData({...editFormData, expirationPeriod: e.target.value})}
                     className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-indigo-500 outline-none"
                   >
                     <option value="Never Expire">Never Expire</option>
@@ -528,7 +524,7 @@ const Clients = () => {
                 </div>
               </div>
             </div>
-
+            
             <div>
               <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4 flex items-center gap-2">
                 <FiUser size={14} /> Client Details
@@ -541,7 +537,7 @@ const Clients = () => {
                     <input
                       type="text"
                       value={editFormData.clientName}
-                      onChange={(e) => setEditFormData({ ...editFormData, clientName: e.target.value })}
+                      onChange={(e) => setEditFormData({...editFormData, clientName: e.target.value})}
                       className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white text-sm focus:border-indigo-500 outline-none"
                       placeholder="Client Name"
                     />
@@ -554,7 +550,7 @@ const Clients = () => {
                     <input
                       type="email"
                       value={editFormData.email}
-                      onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                      onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
                       className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white text-sm focus:border-indigo-500 outline-none"
                       placeholder="client@example.com"
                     />
@@ -562,7 +558,7 @@ const Clients = () => {
                 </div>
               </div>
             </div>
-
+            
             <div>
               <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4 flex items-center gap-2">
                 <FiLock size={14} /> Access Settings
@@ -576,7 +572,7 @@ const Clients = () => {
                       <input
                         type="text"
                         value={editFormData.accessKey}
-                        onChange={(e) => setEditFormData({ ...editFormData, accessKey: e.target.value })}
+                        onChange={(e) => setEditFormData({...editFormData, accessKey: e.target.value})}
                         className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-indigo-400 text-sm font-mono focus:border-indigo-500 outline-none"
                         placeholder="Access Key"
                       />
@@ -589,7 +585,7 @@ const Clients = () => {
                     </button>
                   </div>
                 </div>
-
+                
                 <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10">
                   <div>
                     <p className="text-sm font-medium text-white">Allow Downloads</p>
@@ -599,7 +595,7 @@ const Clients = () => {
                     <input
                       type="checkbox"
                       checked={editFormData.allowDownloads}
-                      onChange={(e) => setEditFormData({ ...editFormData, allowDownloads: e.target.checked })}
+                      onChange={(e) => setEditFormData({...editFormData, allowDownloads: e.target.checked})}
                       className="sr-only peer"
                     />
                     <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
@@ -608,7 +604,7 @@ const Clients = () => {
               </div>
             </div>
           </div>
-
+          
           <div className="flex gap-3 mt-8">
             <button
               onClick={() => setShowEditModal(false)}
@@ -642,53 +638,64 @@ const Clients = () => {
   return (
     <div className="min-h-screen bg-[#050505] flex">
       <SkipLink />
-      <Sidebar
-        isMobileMenuOpen={mobileMenu.isOpen}
-        closeMobileMenu={mobileMenu.close}
+      <Sidebar 
+        isMobileMenuOpen={mobileMenu.isOpen} 
+        closeMobileMenu={mobileMenu.close} 
       />
-
-      <main
+      
+      <main 
         id="main-content"
         className={`flex-1 flex flex-col transition-all duration-300 ${mobileMenu.isOpen ? 'ml-0' : ''} lg:ml-64`}
         tabIndex={-1}
       >
         <DashboardNavbar onMenuToggle={mobileMenu.toggle} isMobileMenuOpen={mobileMenu.isOpen} />
-
+        
         <div className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto space-y-4 md:space-y-8 pb-safe">
           {/* Stats Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
-            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 hover:border-indigo-500/20 transition-all">
-              <div className="flex items-center gap-3 mb-2">
-                <FiUsers className="text-indigo-400" size={20} />
-                <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Total Galleries</p>
-              </div>
-              <div className="flex items-baseline gap-4 mt-2">
-                <h3 className="text-4xl font-bold text-white">{stats.totalClients}</h3>
-                <span className="text-green-500 text-xs font-bold">All time</span>
-              </div>
-            </div>
-
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-6">
             <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 hover:border-indigo-500/20 transition-all">
               <div className="flex items-center gap-3 mb-2">
                 <FiFolder className="text-indigo-400" size={20} />
-                <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Active Galleries</p>
+                <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Total Galleries</p>
               </div>
               <div className="flex items-baseline gap-4 mt-2">
                 <h3 className="text-4xl font-bold text-white">{stats.totalGalleries}</h3>
+                <span className="text-green-500 text-xs font-bold">All time</span>
+              </div>
+            </div>
+            
+            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 hover:border-indigo-500/20 transition-all">
+              <div className="flex items-center gap-3 mb-2">
+                <FiUsers className="text-indigo-400" size={20} />
+                <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Active Galleries</p>
+              </div>
+              <div className="flex items-baseline gap-4 mt-2">
+                <h3 className="text-4xl font-bold text-white">{stats.activeGalleries}</h3>
                 <span className="text-indigo-400 text-xs font-bold">Currently active</span>
               </div>
             </div>
-
+            
+            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 hover:border-indigo-500/20 transition-all">
+              <div className="flex items-center gap-3 mb-2">
+                <FiImage className="text-indigo-400" size={20} />
+                <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Total Images</p>
+              </div>
+              <div className="flex items-baseline gap-4 mt-2">
+                <h3 className="text-4xl font-bold text-white">{stats.totalImages}</h3>
+                <span className="text-green-500 text-xs font-bold">Across all galleries</span>
+              </div>
+            </div>
+            
             <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 hover:border-indigo-500/20 transition-all">
               <div className="flex items-center gap-3 mb-2">
                 <FiHardDrive className="text-indigo-400" size={20} />
-                <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Storage Usage</p>
+                <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Storage Used</p>
               </div>
               <div className="mt-2">
                 <h3 className="text-4xl font-bold text-white">{stats.totalStorage} <span className="text-lg text-gray-500">GB</span></h3>
                 <div className="w-full bg-white/5 h-1.5 rounded-full mt-3 overflow-hidden">
-                  <div
-                    className="bg-indigo-500 h-full transition-all duration-500"
+                  <div 
+                    className="bg-indigo-500 h-full transition-all duration-500" 
                     style={{ width: `${Math.min((parseFloat(stats.totalStorage) / 5) * 100, 100)}%` }}
                   />
                 </div>
@@ -700,24 +707,24 @@ const Clients = () => {
           <div className="flex flex-col md:flex-row justify-between items-center gap-3 md:gap-4">
             <div className="relative w-full md:w-96">
               <FiSearch className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 text-gray-500" />
-              <input
-                type="text"
-                placeholder="Search by name, email, or gallery..."
+              <input 
+                type="text" 
+                placeholder="Search by name, email, or gallery..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full bg-white/[0.02] border border-white/5 rounded-xl py-3 pl-10 md:pl-12 pr-4 text-xs md:text-sm text-gray-300 outline-none focus:border-indigo-500/50 transition-all"
               />
             </div>
             <div className="flex gap-2 md:gap-3 w-full md:w-auto">
-              <button
-                onClick={loadClients}
+              <button 
+                onClick={() => { loadClients(); fetchStats(); }}
                 disabled={isLoading}
                 className="flex-1 md:flex-none flex items-center justify-center md:justify-start gap-2 px-3 md:px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/10 text-gray-300 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95 touch-target"
               >
                 <FiRefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
                 <span className="hidden sm:inline">Refresh</span>
               </button>
-              <button
+              <button 
                 onClick={() => window.location.href = '/gallery'}
                 className="flex-1 md:flex-none flex items-center justify-center md:justify-start gap-2 px-4 md:px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg active:scale-95 touch-target"
               >
@@ -750,7 +757,7 @@ const Clients = () => {
                   <FiUsers size={24} md:size={32} className="text-gray-600" />
                 </div>
                 <p className="text-gray-500 text-sm">No galleries found</p>
-                <button
+                <button 
                   onClick={() => window.location.href = '/dashboard'}
                   className="mt-4 px-4 md:px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold uppercase tracking-widest transition-all active:scale-95 touch-target"
                 >
@@ -764,10 +771,10 @@ const Clients = () => {
                   {filteredClients.map((client) => (
                     <div key={client.id} className="p-4 hover:bg-white/[0.02] transition-colors">
                       <div className="flex items-start gap-3 mb-3">
-                        <img
-                          src={client.avatar}
-                          alt={client.name}
-                          className="w-12 h-12 rounded-xl object-cover ring-1 ring-white/10"
+                        <img 
+                          src={client.avatar} 
+                          alt={client.name} 
+                          className="w-12 h-12 rounded-xl object-cover ring-1 ring-white/10" 
                         />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-bold text-white truncate">{client.name}</p>
@@ -780,7 +787,7 @@ const Clients = () => {
                           </div>
                         </div>
                       </div>
-
+                      
                       <div className="flex flex-wrap items-center gap-2 text-xs">
                         <div className="flex items-center gap-1 text-gray-500">
                           <FiImage size={12} /> {client.imageCount} images
@@ -791,28 +798,28 @@ const Clients = () => {
                       </div>
 
                       <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/5">
-                        <button
+                        <button 
                           onClick={() => handleCopyLink(client.link, client.id)}
                           className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-white/5 rounded-lg text-gray-400 hover:text-indigo-400 transition-all active:scale-95 touch-target"
                         >
                           {copyStatus === client.id ? <FiCheck size={14} className="text-green-400" /> : <FiCopy size={14} />}
                           <span className="text-xs">Link</span>
                         </button>
-                        <a
-                          href={client.link}
-                          target="_blank"
+                        <a 
+                          href={client.link} 
+                          target="_blank" 
                           rel="noopener noreferrer"
                           className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-white/5 rounded-lg text-gray-400 hover:text-indigo-400 transition-all active:scale-95 touch-target"
                         >
                           <FiExternalLink size={14} /> <span className="text-xs">View</span>
                         </a>
-                        <button
+                        <button 
                           onClick={() => handleEditGallery(client)}
                           className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-white/5 rounded-lg text-gray-400 hover:text-yellow-400 transition-all active:scale-95 touch-target"
                         >
                           <FiEdit2 size={14} /> <span className="text-xs">Edit</span>
                         </button>
-                        <button
+                        <button 
                           onClick={() => openDeleteModal(client)}
                           className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-white/5 rounded-lg text-gray-400 hover:text-red-400 transition-all active:scale-95 touch-target"
                         >
@@ -841,10 +848,10 @@ const Clients = () => {
                           <tr key={client.id} className="group hover:bg-white/[0.02] transition-colors">
                             <td className="px-6 md:px-8 py-4 md:py-6">
                               <div className="flex items-center gap-3 md:gap-4">
-                                <img
-                                  src={client.avatar}
-                                  alt={client.name}
-                                  className="w-10 h-10 md:w-12 md:h-12 rounded-xl object-cover ring-1 ring-white/10 group-hover:ring-indigo-500/50 transition-all"
+                                <img 
+                                  src={client.avatar} 
+                                  alt={client.name} 
+                                  className="w-10 h-10 md:w-12 md:h-12 rounded-xl object-cover ring-1 ring-white/10 group-hover:ring-indigo-500/50 transition-all" 
                                 />
                                 <div>
                                   <p className="text-xs md:text-sm font-bold text-white group-hover:text-indigo-400 transition-colors">
@@ -859,7 +866,7 @@ const Clients = () => {
                                 </div>
                               </div>
                             </td>
-
+                            
                             <td className="px-6 md:px-8 py-4 md:py-6">
                               <div className="space-y-2">
                                 <div className="flex items-center gap-2">
@@ -871,7 +878,7 @@ const Clients = () => {
                                   <code className="text-[10px] md:text-[11px] text-indigo-400 font-mono bg-indigo-400/10 px-2 py-1 rounded">
                                     {client.accessKey}
                                   </code>
-                                  <button
+                                  <button 
                                     onClick={() => handleCopyAccessKey(client.accessKey, client.id)}
                                     className="text-gray-500 hover:text-indigo-400 transition-colors"
                                     title="Copy access key"
@@ -881,7 +888,7 @@ const Clients = () => {
                                 </div>
                               </div>
                             </td>
-
+                            
                             <td className="px-6 md:px-8 py-4 md:py-6">
                               <div className="flex flex-col gap-1">
                                 <span className={`text-[9px] uppercase font-bold px-2 py-1 rounded-full border w-fit ${getStatusColor(client.status)}`}>
@@ -890,7 +897,7 @@ const Clients = () => {
                                 <span className="text-[9px] text-gray-600">{client.tag}</span>
                               </div>
                             </td>
-
+                            
                             <td className="px-6 md:px-8 py-4 md:py-6">
                               <p className="text-sm font-semibold text-indigo-400 group-hover:text-indigo-300 transition-colors">
                                 {client.galleryName}
@@ -901,44 +908,44 @@ const Clients = () => {
                                 </span>
                               </div>
                             </td>
-
+                            
                             <td className="px-6 md:px-8 py-4 md:py-6 text-right">
                               <div className="flex justify-end items-center gap-1 md:gap-2">
-                                <button
+                                <button 
                                   onClick={() => handleCopyLink(client.link, client.id)}
                                   className="p-1.5 md:p-2 rounded-lg bg-white/10 hover:bg-indigo-600/20 text-gray-400 hover:text-indigo-400 transition-all duration-200 active:scale-95 touch-target"
                                   title="Copy gallery link"
                                 >
                                   {copyStatus === client.id ? <FiCheck size={14} md:size={16} className="text-green-400" /> : <FiCopy size={14} md:size={16} />}
                                 </button>
-
-                                <a
-                                  href={client.link}
-                                  target="_blank"
+                                
+                                <a 
+                                  href={client.link} 
+                                  target="_blank" 
                                   rel="noopener noreferrer"
                                   className="p-1.5 md:p-2 rounded-lg bg-white/10 hover:bg-indigo-600/20 text-gray-400 hover:text-indigo-400 transition-all duration-200 active:scale-95 touch-target"
                                   title="Open gallery"
                                 >
                                   <FiExternalLink size={14} md:size={16} />
                                 </a>
-
-                                <button
+                                
+                                <button 
                                   onClick={() => handleEditGallery(client)}
                                   className="p-1.5 md:p-2 rounded-lg bg-white/10 hover:bg-yellow-600/20 text-gray-400 hover:text-yellow-400 transition-all duration-200 active:scale-95 touch-target"
                                   title="Edit gallery"
                                 >
                                   <FiEdit2 size={14} md:size={16} />
                                 </button>
-
-                                <button
+                                
+                                <button 
                                   onClick={() => openDeleteModal(client)}
                                   className="p-1.5 md:p-2 rounded-lg bg-white/10 hover:bg-red-600/20 text-gray-400 hover:text-red-400 transition-all duration-200 active:scale-95 touch-target"
                                   title="Delete gallery"
                                 >
                                   <FiTrash2 size={14} md:size={16} />
                                 </button>
-
-                                <button
+                                
+                                <button 
                                   className="p-1.5 md:p-2 rounded-lg bg-white/10 hover:bg-white/20 text-gray-400 hover:text-white transition-all duration-200 active:scale-95 touch-target"
                                   title="More options"
                                 >
@@ -954,14 +961,14 @@ const Clients = () => {
                 </div>
               </>
             )}
-
+            
             {pagination.totalPages > 1 && (
               <div className="p-4 md:p-6 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-3 md:gap-4 bg-black/20">
                 <p className="text-[10px] md:text-xs text-gray-600 font-bold uppercase tracking-widest">
                   Showing {filteredClients.length} of {pagination.totalItems} galleries
                 </p>
                 <div className="flex gap-2">
-                  <button
+                  <button 
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     disabled={!pagination.hasPrevPage}
                     className="px-3 md:px-4 py-2 rounded-lg bg-white/5 text-gray-300 text-xs border border-white/10 hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 touch-target"
@@ -971,7 +978,7 @@ const Clients = () => {
                   <span className="px-3 md:px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs">
                     {pagination.currentPage} / {pagination.totalPages}
                   </span>
-                  <button
+                  <button 
                     onClick={() => setCurrentPage(prev => Math.min(pagination.totalPages, prev + 1))}
                     disabled={!pagination.hasNextPage}
                     className="px-3 md:px-4 py-2 rounded-lg bg-white/5 text-gray-300 text-xs border border-white/10 hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 touch-target"
@@ -983,10 +990,10 @@ const Clients = () => {
             )}
           </div>
         </div>
-
+        
         <Footer />
       </main>
-
+      
       <DeleteModal />
       <EditModal />
     </div>
