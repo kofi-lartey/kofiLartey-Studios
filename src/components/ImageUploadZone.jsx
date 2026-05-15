@@ -90,7 +90,7 @@ const ImageUploadZone = ({ onUploadComplete, galleryName, galleryId, onGalleryCh
     setUploadStatus({ type: 'info', message: 'Creating gallery...' });
 
     try {
-      const response = await post('/create/galleryName', {
+      const response = await post('gallery/create/galleryName', {
         galleryName: localGalleryName.trim()
       });
 
