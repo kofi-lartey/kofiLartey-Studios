@@ -1,686 +1,1003 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import {
-    FiDownload,
-    FiMaximize2,
-    FiX,
-    FiPlay,
-    FiHeart,
-    FiShare2,
-    FiInfo,
-    FiCamera,
-    FiClock,
-    FiKey,
-    FiLogIn,
-    FiAlertCircle,
-    FiChevronLeft,
-    FiChevronRight,
-    FiPause
+import { useState, useEffect } from "react";
+import { 
+  FiSearch, FiUserPlus, FiMoreHorizontal, FiCopy, FiCheck, 
+  FiExternalLink, FiUsers, FiFolder, FiHardDrive, FiTrash2, 
+  FiKey, FiMail, FiImage, FiAlertCircle, FiX, FiRefreshCw, 
+  FiCalendar, FiEdit2, FiSave, FiUser, FiAtSign, FiLock,
+  FiCamera, FiClock, FiMenu, FiLink, FiDownload, FiEye,
+  FiBarChart2
 } from "react-icons/fi";
-import NavBar from "../componets/NavBar";
+import Sidebar from "../componets/Sidebar";
+import DashboardNavbar from "../componets/DashboardNavbar";
 import Footer from "../componets/Footer";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import Loader from "../components/Loader";
-import { post } from "../utils/apiCall";
+import { get, del, put } from "../utils/apiCall";
+import { useMobileMenu } from "../hooks/useMobileMenu";
+import SkipLink from "../components/SkipLink";
 
-// Helper function to download image from URL
-const downloadImage = async (url, filename) => {
+const Clients = () => {
+  const [copyStatus, setCopyStatus] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [clients, setClients] = useState([]);
+  const [stats, setStats] = useState({
+    totalGalleries: 0,
+    activeGalleries: 0,
+    totalImages: 0,
+    totalViews: 0,
+    totalDownloads: 0,
+    totalStorage: "0.0"
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedGallery, setSelectedGallery] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 10,
+    hasNextPage: false,
+    hasPrevPage: false
+  });
+  const [currentPage, setCurrentPage] = useState(1);
+  const mobileMenu = useMobileMenu();
+  
+  // Edit form state
+  const [editFormData, setEditFormData] = useState({
+    galleryName: "",
+    clientName: "",
+    email: "",
+    accessKey: "",
+    expirationPeriod: "Never Expire",
+    allowDownloads: true
+  });
+
+  // Fetch stats on mount
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  // Load clients when page changes
+  useEffect(() => {
+    loadClients();
+  }, [currentPage]);
+
+  const fetchStats = async () => {
     try {
-        // Show loading indicator (optional)
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename || 'image.jpg';
-        link.target = '_blank';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+      const response = await get('/gallery/all/stats');
+      console.log('📊 Stats response:', response);
+      
+      if (response.success && response.data?.overview) {
+        const { overview } = response.data;
+        setStats({
+          totalGalleries: overview.totalGalleries || 0,
+          activeGalleries: overview.activeGalleries || 0,
+          totalImages: overview.totalImages || 0,
+          totalViews: overview.totalViews || 0,
+          totalDownloads: overview.totalDownloads || 0,
+          totalStorage: formatStorageSize(overview.totalStorageUsed || '0 KB')
+        });
+      }
     } catch (error) {
-        console.error('Download error:', error);
-        // Fallback: open in new tab
-        window.open(url, '_blank');
+      console.error('Failed to fetch stats:', error);
     }
-};
+  };
 
-// Slideshow Modal Component
-const SlideshowModal = ({ images, galleryName, onClose, initialIndex = 0, allowDownload = false }) => {
-    const [currentIndex, setCurrentIndex] = useState(initialIndex);
-    const [isPlaying, setIsPlaying] = useState(true);
-    const [showControls, setShowControls] = useState(true);
-    const [isDownloading, setIsDownloading] = useState(false);
-    const touchStartX = useRef(0);
-    const touchEndX = useRef(0);
-    const controlsTimeout = useRef(null);
+  const formatStorageSize = (storageString) => {
+    if (!storageString) return '0.0';
+    
+    const match = storageString.match(/^([\d.]+)\s*(KB|MB|GB|TB)$/i);
+    if (!match) return '0.0';
+    
+    const value = parseFloat(match[1]);
+    const unit = match[2].toUpperCase();
+    
+    switch(unit) {
+      case 'KB': return (value / (1024 * 1024)).toFixed(2);
+      case 'MB': return (value / 1024).toFixed(2);
+      case 'GB': return value.toFixed(2);
+      case 'TB': return (value * 1024).toFixed(2);
+      default: return '0.00';
+    }
+  };
 
-    useEffect(() => {
-        let interval;
-        if (isPlaying && images.length > 0) {
-            interval = setInterval(() => {
-                setCurrentIndex((prev) => (prev + 1) % images.length);
-            }, 3000);
-        }
-        return () => clearInterval(interval);
-    }, [isPlaying, images.length]);
-
-    const handlePrevious = () => {
-        setCurrentIndex((prev) => (prev - 1 + images.length) % images.length);
-        setIsPlaying(false);
-    };
-
-    const handleNext = () => {
-        setCurrentIndex((prev) => (prev + 1) % images.length);
-        setIsPlaying(false);
-    };
-
-    const handleDownloadCurrent = async () => {
-        if (!allowDownload) return;
-        setIsDownloading(true);
-        const url = images[currentIndex];
-        const filename = `gallery-image-${currentIndex + 1}.jpg`;
-        await downloadImage(url, filename);
-        setIsDownloading(false);
-    };
-
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            if (e.key === 'ArrowLeft') handlePrevious();
-            if (e.key === 'ArrowRight') handleNext();
-            if (e.key === 'Escape') onClose();
-            if (e.key === 'd' && allowDownload) handleDownloadCurrent();
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [handlePrevious, handleNext, onClose, handleDownloadCurrent, allowDownload]);
-
-    const handleTouchStart = (e) => {
-        touchStartX.current = e.touches[0].clientX;
-    };
-
-    const handleTouchMove = (e) => {
-        touchEndX.current = e.touches[0].clientX;
-    };
-
-    const handleTouchEnd = () => {
-        const swipeThreshold = 50;
-        const diff = touchStartX.current - touchEndX.current;
+  const loadClients = async () => {
+    setIsLoading(true);
+    setError("");
+    
+    try {
+      const response = await get(`/gallery/user/details?page=${currentPage}&limit=10`);
+      
+      console.log('API Response:', response);
+      
+      if (response.success) {
+        let galleries = [];
+        let paginationData = null;
         
-        if (Math.abs(diff) > swipeThreshold) {
-            if (diff > 0) {
-                handleNext();
-            } else {
-                handlePrevious();
-            }
-        }
-    };
-
-    return (
-        <div
-            className="fixed inset-0 bg-black z-[200] flex flex-col"
-            onMouseMove={() => {
-                setShowControls(true);
-                clearTimeout(controlsTimeout.current);
-                controlsTimeout.current = setTimeout(() => setShowControls(false), 3000);
-            }}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            role="dialog"
-            aria-label="Image slideshow"
-        >
-            <div className={`absolute top-0 left-0 right-0 p-4 md:p-6 bg-gradient-to-b from-black/80 to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
-                <div className="flex justify-between items-center">
-                    <div className="text-white px-2">
-                        <p className="text-sm md:text-base font-medium">Slideshow Mode</p>
-                        <p className="text-xs md:text-sm text-gray-400">
-                            {currentIndex + 1} of {images.length}
-                        </p>
-                        {galleryName && (
-                            <p className="text-xs md:text-sm text-indigo-400 mt-1 line-clamp-1">
-                                {galleryName}
-                            </p>
-                        )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {allowDownload && (
-                            <button
-                                onClick={handleDownloadCurrent}
-                                disabled={isDownloading}
-                                className="text-white hover:bg-white/10 p-2 md:p-3 rounded-full transition-all active:scale-95 disabled:opacity-50"
-                                aria-label="Download current image"
-                            >
-                                <FiDownload size={20} />
-                            </button>
-                        )}
-                        <button
-                            onClick={onClose}
-                            className="text-white hover:bg-white/10 p-2 md:p-3 rounded-full transition-all active:scale-95"
-                            aria-label="Close slideshow"
-                        >
-                            <FiX size={24} />
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div className="flex-1 flex items-center justify-center p-4">
-                <img
-                    src={images[currentIndex]}
-                    alt={`Slide ${currentIndex + 1}`}
-                    className="max-w-full max-h-[85vh] object-contain shadow-2xl"
-                    loading="lazy"
-                />
-            </div>
-
-            <div className={`absolute bottom-0 left-0 right-0 p-4 md:p-6 bg-gradient-to-t from-black/80 to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
-                <div className="flex items-center justify-center gap-4 md:gap-6">
-                    <button
-                        onClick={handlePrevious}
-                        className="p-3 md:p-4 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all active:scale-95"
-                        aria-label="Previous image"
-                    >
-                        <FiChevronLeft size={24} />
-                    </button>
-
-                    <button
-                        onClick={() => setIsPlaying(!isPlaying)}
-                        className="p-4 md:p-5 bg-indigo-600 hover:bg-indigo-500 rounded-full text-white transition-all shadow-xl active:scale-95"
-                        aria-label={isPlaying ? "Pause slideshow" : "Play slideshow"}
-                    >
-                        {isPlaying ? <FiPause size={24} /> : <FiPlay size={24} />}
-                    </button>
-
-                    <button
-                        onClick={handleNext}
-                        className="p-3 md:p-4 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all active:scale-95"
-                        aria-label="Next image"
-                    >
-                        <FiChevronRight size={24} />
-                    </button>
-                </div>
-
-                <div className="mt-4 md:mt-6 max-w-2xl mx-auto">
-                    <div className="h-1 md:h-1.5 bg-white/20 rounded-full overflow-hidden">
-                        <div
-                            className="h-full bg-indigo-500 transition-all duration-300"
-                            style={{ width: `${((currentIndex + 1) / images.length) * 100}%` }}
-                        />
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const ClientGallery = () => {
-    const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
-    const [selectedImage, setSelectedImage] = useState(null);
-    const [isFavorite, setIsFavorite] = useState(false);
-    const [accessKey, setAccessKey] = useState("");
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [error, setError] = useState("");
-    const [isLoading, setIsLoading] = useState(false);
-    const [galleryData, setGalleryData] = useState(null);
-    const [images, setImages] = useState([]);
-    const [isFindingGallery, setIsFindingGallery] = useState(true);
-    const [requiresAccessKey, setRequiresAccessKey] = useState(true);
-    const [showSlideshow, setShowSlideshow] = useState(false);
-    const [slideshowStartIndex, setSlideshowStartIndex] = useState(0);
-    const [isDownloading, setIsDownloading] = useState(false);
-
-    // Check URL for accessKey on mount
-    useEffect(() => {
-        const urlAccessKey = searchParams.get('accessKey');
-        if (urlAccessKey) {
-            setAccessKey(urlAccessKey);
-            validateAndLoadGallery(urlAccessKey);
+        if (Array.isArray(response.data)) {
+          galleries = response.data;
+          paginationData = response.pagination;
+        } else if (response.data && Array.isArray(response.data.galleries)) {
+          galleries = response.data.galleries;
+          paginationData = response.data.pagination || response.pagination;
+        } else if (response.data && response.data.data) {
+          galleries = response.data.data;
+          paginationData = response.data.pagination;
         } else {
-            setIsFindingGallery(false);
-            setRequiresAccessKey(true);
+          galleries = [];
+          paginationData = response.pagination;
         }
-    }, []);
-
-    const validateAndLoadGallery = async (key) => {
-        setIsLoading(true);
-        setError("");
-
-        try {
-            const response = await post('/gallery/public', { accessKey: key });
-
-            console.log('🎨 Gallery access response:', response);
-
-            if (response.success && response.data) {
-                const gallery = response.data;
-                setGalleryData(gallery);
-                setImages(gallery.images || []);
-                setIsAuthenticated(true);
-                setRequiresAccessKey(false);
-            } else {
-                throw new Error(response.message || "Failed to access gallery");
-            }
-        } catch (error) {
-            console.error('Gallery access error:', error);
-
-            if (error.response?.status === 404) {
-                setError("No gallery found with this access key. Please check and try again.");
-            } else if (error.response?.status === 403) {
-                setError(error.response?.data?.message || "This gallery link has expired");
-            } else {
-                setError(error.response?.data?.message || "Failed to load gallery");
-            }
-            setRequiresAccessKey(true);
-        } finally {
-            setIsLoading(false);
-            setIsFindingGallery(false);
-        }
-    };
-
-    const handleAccessKeySubmit = async (e) => {
-        e.preventDefault();
-        if (!accessKey.trim()) {
-            setError("Please enter your access key");
-            return;
-        }
-        await validateAndLoadGallery(accessKey.trim());
-    };
-
-    // ✅ Fixed: Download single image using fetch blob
-    const handleDownload = async (e, url, filename) => {
-        e.stopPropagation();
         
-        if (!isDownloadAllowed) {
-            setError("Download permission not granted for this gallery");
-            setTimeout(() => setError(""), 3000);
-            return;
+        const clientList = galleries.map(gallery => ({
+          id: gallery._id,
+          galleryId: gallery._id,
+          galleryID: gallery.galleryInfo?.galleryID || gallery.id,
+          name: gallery.clientDetails?.clientName || gallery.clientDetails?.name || 'N/A',
+          email: gallery.clientDetails?.email || 'N/A',
+          status: gallery.isAccessKeyActive ? "Active" : "Expired",
+          tag: "Unlimited",
+          galleries: 1,
+          galleryName: gallery.galleryInfo?.galleryName || gallery.galleryName || 'Untitled',
+          link: gallery.galleryUrl || gallery.shareLink || '',
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(gallery.clientDetails?.clientName || gallery.clientDetails?.name || 'User')}&background=4f46e5&color=fff&bold=true&length=2`,
+          createdAt: gallery.clientDetails?.dateCreated || gallery.createdAt || new Date().toISOString(),
+          imageCount: gallery.galleryInfo?.totalImages || gallery.imageCount || 0,
+          storageUsed: 0,
+          accessKey: gallery.accessKey || 'N/A',
+          expiration: gallery.galleryInfo?.expirationPeriod || gallery.expiration || 'Never Expire',
+          downloadPermissions: gallery.galleryInfo?.settings?.allowDownloads || true,
+          originalData: gallery
+        }));
+        
+        setClients(clientList);
+        
+        if (paginationData) {
+          setPagination({
+            currentPage: paginationData.currentPage || 1,
+            totalPages: paginationData.totalPages || 1,
+            totalItems: paginationData.totalItems || clientList.length,
+            itemsPerPage: paginationData.itemsPerPage || 10,
+            hasNextPage: paginationData.hasNextPage || false,
+            hasPrevPage: paginationData.hasPrevPage || false
+          });
         }
-
-        setIsDownloading(true);
-        try {
-            // Fetch the image as a blob
-            const response = await fetch(url);
-            const blob = await response.blob();
-            
-            // Create a blob URL
-            const blobUrl = window.URL.createObjectURL(blob);
-            
-            // Create download link
-            const link = document.createElement('a');
-            link.href = blobUrl;
-            link.download = filename || `image_${Date.now()}.jpg`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            // Clean up the blob URL
-            window.URL.revokeObjectURL(blobUrl);
-        } catch (error) {
-            console.error('Download error:', error);
-            // Fallback: try opening in new tab
-            window.open(url, '_blank');
-        } finally {
-            setIsDownloading(false);
-        }
-    };
-
-    // ✅ Fixed: Download all images as a zip (using JSZip for multiple files)
-    const handleDownloadAll = async () => {
-        if (!isDownloadAllowed) {
-            setError("Download permission not granted for this gallery");
-            setTimeout(() => setError(""), 3000);
-            return;
-        }
-
-        if (images.length === 0) {
-            setError("No images to download");
-            return;
-        }
-
-        setIsDownloading(true);
-        setError("");
-
-        try {
-            // Dynamically import JSZip
-            const JSZip = (await import('jszip')).default;
-            const zip = new JSZip();
-            
-            let downloadedCount = 0;
-            
-            // Show progress in console
-            console.log(`Starting download of ${images.length} images...`);
-            
-            for (let i = 0; i < images.length; i++) {
-                const img = images[i];
-                try {
-                    const response = await fetch(img.imageUrl);
-                    const blob = await response.blob();
-                    const filename = img.originalName || `image_${i + 1}.jpg`;
-                    zip.file(filename, blob);
-                    downloadedCount++;
-                    console.log(`Downloaded ${downloadedCount}/${images.length}: ${filename}`);
-                } catch (err) {
-                    console.error(`Failed to download ${img.imageName}:`, err);
-                }
-            }
-            
-            if (downloadedCount > 0) {
-                const zipBlob = await zip.generateAsync({ type: 'blob' });
-                const zipUrl = window.URL.createObjectURL(zipBlob);
-                const link = document.createElement('a');
-                link.href = zipUrl;
-                link.download = `${galleryData?.galleryName || 'gallery'}_images.zip`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                window.URL.revokeObjectURL(zipUrl);
-                
-                setError(`${downloadedCount} of ${images.length} images downloaded successfully!`);
-                setTimeout(() => setError(""), 3000);
-            } else {
-                throw new Error("No images could be downloaded");
-            }
-        } catch (error) {
-            console.error('Download all error:', error);
-            setError("Failed to download images. Please try again.");
-            setTimeout(() => setError(""), 3000);
-        } finally {
-            setIsDownloading(false);
-        }
-    };
-
-    const handleSlideshow = () => {
-        if (images.length === 0) return;
-        setSlideshowStartIndex(0);
-        setShowSlideshow(true);
-    };
-
-    // Check if download is allowed
-    const isDownloadAllowed = galleryData?.downloadPermission === true || galleryData?.gallerySettings?.allowDownloads === true;
-
-    // Loading state
-    if (isFindingGallery || isLoading) {
-        return (
-            <div className="min-h-screen bg-[#050505] flex flex-col font-urbanist font-sans text-white">
-                <NavBar />
-                <main className="flex-1 flex items-center justify-center pt-32 px-6">
-                    <div className="text-center">
-                        <Loader size={40} variant="minimal" />
-                        <p className="text-gray-500 text-sm mt-4">Loading gallery...</p>
-                    </div>
-                </main>
-                <Footer />
-            </div>
-        );
+      } else {
+        throw new Error(response.message || "Failed to load galleries");
+      }
+    } catch (error) {
+      console.error('Failed to load clients:', error);
+      setError(error.message || "Failed to load galleries");
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    // Invalid access key error
-    if (error && !isAuthenticated && requiresAccessKey) {
-        return (
-            <div className="min-h-screen bg-[#050505] flex flex-col font-urbanist font-sans text-white">
-                <NavBar />
-                <main className="flex-1 flex items-center justify-center pt-32 px-6">
-                    <div className="text-center max-w-md">
-                        <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-white/5 flex items-center justify-center">
-                            <FiAlertCircle size={40} className="text-gray-600" />
-                        </div>
-                        <h2 className="text-2xl font-bold text-white mb-2">Invalid Access Key</h2>
-                        <p className="text-gray-500 text-sm mb-6">{error}</p>
-                        <button
-                            onClick={() => window.location.reload()}
-                            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-medium transition-colors"
-                        >
-                            Try Again
-                        </button>
-                    </div>
-                </main>
-                <Footer />
-            </div>
-        );
+  const openDeleteModal = (client) => {
+    setSelectedGallery(client);
+    setDeleteConfirmText("");
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteGallery = async () => {
+    if (!selectedGallery) return;
+    
+    if (deleteConfirmText !== "DELETE") {
+      setError("Please type DELETE to confirm");
+      return;
     }
-
-    // Access Key Input Screen
-    if (requiresAccessKey && !isAuthenticated) {
-        return (
-            <div className="min-h-screen bg-[#050505] flex flex-col font-urbanist font-sans text-white">
-                <NavBar />
-
-                <main className="flex-1 flex items-center justify-center px-6 py-12 pt-32">
-                    <div className="max-w-md w-full">
-                        <div className="text-center mb-8">
-                            <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-2xl">
-                                <FiKey size={34} className="text-white" />
-                            </div>
-                            <h1 className="text-4xl font-bold text-white mb-3">Enter Access Key</h1>
-                            <p className="text-gray-400 text-sm">
-                                Enter the access key provided to you to view your gallery
-                            </p>
-                        </div>
-
-                        <form onSubmit={handleAccessKeySubmit} className="space-y-6">
-                            <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
-                                <div className="space-y-5">
-                                    <div>
-                                        <label className="block text-[11px] uppercase text-gray-500 font-bold tracking-wider mb-2">
-                                            ACCESS KEY
-                                        </label>
-                                        <div className="relative">
-                                            <FiKey className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                                            <input
-                                                type="text"
-                                                value={accessKey}
-                                                onChange={(e) => setAccessKey(e.target.value.toUpperCase())}
-                                                placeholder="Enter your access key"
-                                                className="w-full bg-black/40 border border-white/10 rounded-xl py-3.5 pl-11 pr-4 text-sm text-white placeholder:text-gray-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
-                                                autoFocus
-                                            />
-                                        </div>
-                                        <p className="text-[10px] text-gray-600 mt-2">
-                                            Your access key was provided when the gallery was shared with you.
-                                        </p>
-                                    </div>
-
-                                    {error && (
-                                        <div className="p-3.5 bg-red-600/10 border border-red-500/20 rounded-xl flex items-center gap-2">
-                                            <FiAlertCircle className="text-red-400 flex-shrink-0" size={14} />
-                                            <span className="text-[11px] text-red-400 font-bold uppercase tracking-wider">{error}</span>
-                                        </div>
-                                    )}
-
-                                    <button
-                                        type="submit"
-                                        disabled={isLoading}
-                                        className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white py-3.5 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl shadow-indigo-600/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        <FiLogIn size={14} />
-                                        ACCESS GALLERY
-                                    </button>
-                                </div>
-                            </div>
-                        </form>
-                    </div>
-                </main>
-
-                <Footer />
-            </div>
-        );
+    
+    setDeleteLoading(true);
+    try {
+      const response = await del(`/gallery/main/${selectedGallery.galleryId}`);
+      
+      if (response.success) {
+        setShowDeleteModal(false);
+        setSelectedGallery(null);
+        setDeleteConfirmText("");
+        await loadClients();
+        await fetchStats(); // Refresh stats
+      } else {
+        setError(response.message || "Failed to delete gallery");
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      setError(error.response?.data?.message || error.message || "Failed to delete gallery");
+    } finally {
+      setDeleteLoading(false);
     }
+  };
 
-    // Authenticated Gallery View
+  const handleEditGallery = (client) => {
+    setSelectedGallery(client);
+    setEditFormData({
+      galleryName: client.galleryName,
+      clientName: client.name,
+      email: client.email,
+      accessKey: client.accessKey,
+      expirationPeriod: client.expiration,
+      allowDownloads: client.downloadPermissions
+    });
+    setShowEditModal(true);
+  };
+
+  const handleUpdateGallery = async () => {
+    if (!selectedGallery) return;
+    
+    setEditLoading(true);
+    try {
+      const updateData = {
+        galleryName: editFormData.galleryName,
+        clientDetails: {
+          clientName: editFormData.clientName,
+          email: editFormData.email
+        },
+        accessKey: editFormData.accessKey,
+        expirationPeriod: editFormData.expirationPeriod,
+        settings: {
+          allowDownloads: editFormData.allowDownloads
+        }
+      };
+      
+      const response = await put(`/gallery/${selectedGallery.galleryId}`, updateData);
+      
+      if (response.success) {
+        setShowEditModal(false);
+        setSelectedGallery(null);
+        await loadClients();
+        await fetchStats(); // Refresh stats
+      } else {
+        setError(response.message || "Failed to update gallery");
+      }
+    } catch (error) {
+      console.error('Update error:', error);
+      setError(error.message || "Failed to update gallery");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleCopyLink = (link, id) => {
+    navigator.clipboard.writeText(link);
+    setCopyStatus(id);
+    setTimeout(() => setCopyStatus(null), 2000);
+  };
+
+  const handleCopyAccessKey = (accessKey, id) => {
+    navigator.clipboard.writeText(accessKey);
+    setCopyStatus(`key-${id}`);
+    setTimeout(() => setCopyStatus(null), 2000);
+  };
+
+  const regenerateAccessKey = () => {
+    const newKey = 'KEY' + Math.random().toString(36).substring(2, 15).toUpperCase();
+    setEditFormData({ ...editFormData, accessKey: newKey });
+  };
+
+  const filteredClients = clients.filter(client => 
+    client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    client.galleryName.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const getStatusColor = (status) => {
+    switch(status) {
+      case 'Active': return 'text-green-400 border-green-400/20 bg-green-400/5';
+      case 'Expired': return 'text-red-400 border-red-400/20 bg-red-400/5';
+      default: return 'text-gray-400 border-gray-400/20 bg-gray-400/5';
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  // Delete Confirmation Modal
+  const DeleteModal = () => {
+    if (!showDeleteModal || !selectedGallery) return null;
+    
+    const isConfirmValid = deleteConfirmText === "DELETE";
+    
     return (
-        <div className="min-h-screen bg-[#050505] flex flex-col font-urbanist font-sans text-white selection:bg-indigo-500/30">
-            <NavBar />
-
-            <main className="flex-1 max-w-7xl w-full mx-auto px-6 pt-32 pb-12 space-y-12">
-                {/* Header Section */}
-                <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-8">
-                    <div className="space-y-4">
-                        <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400">✨ Private Collection</span>
-                        </div>
-                        <h1 className="text-5xl md:text-7xl font-bold tracking-tighter text-white">
-                            {galleryData?.galleryName || "Client Gallery"}
-                        </h1>
-                        <div className="flex flex-wrap items-center gap-6 text-gray-400 text-xs font-bold uppercase tracking-widest">
-                            <span className="flex items-center gap-2"><FiCamera className="text-indigo-500" /> {galleryData?.studioName || "kofiLartey Studio"}</span>
-                            <span className="flex items-center gap-2"><FiClock className="text-indigo-500" /> {images.length} High-Resolution Captures</span>
-                            {!isDownloadAllowed && (
-                                <span className="flex items-center gap-2 text-amber-500/70">
-                                    <FiDownload size={12} /> Download Disabled
-                                </span>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col items-end gap-3">
-                        {isDownloadAllowed && (
-                            <button
-                                onClick={handleDownloadAll}
-                                disabled={images.length === 0 || isDownloading}
-                                className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-xl font-bold text-xs flex items-center gap-3 transition-all shadow-xl shadow-indigo-600/20 active:scale-95 w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                <FiDownload className="text-sm" /> 
-                                {isDownloading ? 'Preparing Download...' : 'Download All Gallery'}
-                            </button>
-                        )}
-                        {galleryData?.expirationPeriod && galleryData.expirationPeriod !== "Never Expire" && galleryData.expiresAt && (
-                            <span className="text-[9px] text-amber-500/70 font-bold uppercase tracking-widest">
-                                Access expires: {new Date(galleryData.expiresAt).toLocaleDateString()}
-                            </span>
-                        )}
-                    </div>
+      <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+        <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+          {/* Header */}
+          <div className="sticky top-0 bg-[#0a0a0a] border-b border-white/10 p-6 rounded-t-2xl z-10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-red-500/10 rounded-full">
+                  <FiTrash2 className="text-red-500" size={20} />
                 </div>
+                <h3 className="text-xl font-bold text-white">Delete Gallery</h3>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeleteConfirmText("");
+                }}
+                className="text-gray-500 hover:text-white transition-colors"
+              >
+                <FiX size={20} />
+              </button>
+            </div>
+          </div>
 
-                {/* Toolbar */}
-                <div className="flex justify-center gap-4">
-                    <button
-                        onClick={handleSlideshow}
-                        disabled={images.length === 0}
-                        className="flex items-center gap-2 px-6 py-2 bg-white/5 border border-white/10 rounded-full text-[10px] uppercase font-bold tracking-widest text-gray-300 hover:text-white hover:bg-indigo-600/20 hover:border-indigo-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        <FiPlay size={12} className="text-indigo-400" /> Slideshow Mode
-                    </button>
+          {/* Content */}
+          <div className="p-6 space-y-4">
+            {/* Warning */}
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+              <div className="flex items-center gap-2 text-red-400 mb-2">
+                <FiAlertCircle size={18} />
+                <span className="font-bold text-sm uppercase tracking-wider">Permanent Deletion</span>
+              </div>
+              <p className="text-red-400/80 text-xs leading-relaxed">
+                This action cannot be undone. Everything associated with this gallery will be permanently deleted.
+              </p>
+            </div>
+
+            {/* Gallery Details */}
+            <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4 space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">Gallery Details</h4>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[9px] uppercase text-gray-600">Gallery Name</p>
+                  <p className="text-sm text-white font-medium">{selectedGallery.galleryName}</p>
                 </div>
+                <div>
+                  <p className="text-[9px] uppercase text-gray-600">Gallery ID</p>
+                  <p className="text-xs text-indigo-400 font-mono">{selectedGallery.galleryID}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase text-gray-600">Client</p>
+                  <p className="text-sm text-white">{selectedGallery.name}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase text-gray-600">Email</p>
+                  <p className="text-xs text-gray-400 truncate">{selectedGallery.email}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase text-gray-600">Images</p>
+                  <p className="text-sm text-white font-bold">{selectedGallery.imageCount || 0}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase text-gray-600">Status</p>
+                  <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full border ${getStatusColor(selectedGallery.status)}`}>
+                    {selectedGallery.status}
+                  </span>
+                </div>
+              </div>
 
-                {/* Image Grid */}
-                {images.length === 0 ? (
-                    <div className="text-center py-20 border border-white/5 rounded-3xl bg-white/[0.01]">
-                        <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-white/5 flex items-center justify-center">
-                            <FiCamera size={32} className="text-gray-600" />
-                        </div>
-                        <p className="text-gray-500 text-sm">No images in this gallery yet.</p>
-                        <p className="text-gray-600 text-xs mt-2">Check back later for updates.</p>
-                    </div>
+              <div className="border-t border-white/5 pt-3">
+                <p className="text-[9px] uppercase text-gray-600 mb-1">Gallery URL</p>
+                <div className="flex items-center gap-2 bg-black/40 rounded-lg p-2 border border-white/5">
+                  <FiLink size={12} className="text-gray-500 flex-shrink-0" />
+                  <p className="text-[10px] text-gray-400 truncate">{selectedGallery.link}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* What Will Be Lost */}
+            <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">What Will Be Lost</h4>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <FiImage size={12} className="text-red-400/60" />
+                  <span>{selectedGallery.imageCount || 0} images from Cloudinary</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <FiFolder size={12} className="text-red-400/60" />
+                  <span>Gallery and all metadata</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <FiKey size={12} className="text-red-400/60" />
+                  <span>Access keys and permissions</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <FiLink size={12} className="text-red-400/60" />
+                  <span>Gallery share link</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <FiUser size={12} className="text-red-400/60" />
+                  <span>Client access for {selectedGallery.name}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Confirmation Input */}
+            <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4">
+              <p className="text-xs text-gray-400 mb-3">
+                Type <span className="text-white font-bold bg-red-500/20 px-2 py-0.5 rounded">DELETE</span> to confirm:
+              </p>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="Type DELETE to confirm"
+                className={`w-full bg-black/40 border rounded-xl px-4 py-3 text-sm font-bold uppercase tracking-wider outline-none transition-all ${
+                  deleteConfirmText === "DELETE" 
+                    ? 'border-red-500 text-red-400' 
+                    : 'border-white/10 text-gray-400'
+                }`}
+                autoFocus
+              />
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="sticky bottom-0 bg-[#0a0a0a] border-t border-white/10 p-6 rounded-b-2xl">
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeleteConfirmText("");
+                }}
+                className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-gray-400 hover:text-white transition-colors text-sm font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteGallery}
+                disabled={!isConfirmValid || deleteLoading}
+                className={`flex-1 px-4 py-3 rounded-xl transition-all text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 ${
+                  isConfirmValid && !deleteLoading
+                    ? 'bg-red-600 hover:bg-red-500 text-white'
+                    : 'bg-red-600/20 text-red-400/50 cursor-not-allowed'
+                }`}
+              >
+                {deleteLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Deleting...
+                  </>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {images.map((img, index) => (
-                            <div
-                                key={img.imageId || index}
-                                className="group relative aspect-square bg-white/5 rounded-2xl overflow-hidden cursor-zoom-in border border-white/5 transition-all duration-500 hover:border-indigo-500/30"
-                                onClick={() => setSelectedImage(img)}
-                            >
-                                <img
-                                    src={img.imageUrl}
-                                    alt={img.imageName}
-                                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                                    loading="lazy"
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-between p-6">
-                                    <div className="flex justify-end">
-                                        {isDownloadAllowed && (
-                                            <button
-                                                onClick={(e) => handleDownload(e, img.imageUrl, img.originalName)}
-                                                disabled={isDownloading}
-                                                className="p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-indigo-600 transition-all border border-white/10 shadow-xl disabled:opacity-50"
-                                            >
-                                                <FiDownload size={18} />
-                                            </button>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-white font-bold text-sm tracking-tight">{img.imageName || "Image"}</p>
-                                        <FiMaximize2 className="text-white/70" />
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                  <>
+                    <FiTrash2 size={16} />
+                    Delete Permanently
+                  </>
                 )}
-            </main>
-
-            <Footer />
-
-            {/* Slideshow Modal */}
-            {showSlideshow && (
-                <SlideshowModal
-                    images={images.map(img => img.imageUrl)}
-                    galleryName={galleryData?.galleryName}
-                    onClose={() => setShowSlideshow(false)}
-                    initialIndex={slideshowStartIndex}
-                    allowDownload={isDownloadAllowed}
-                />
-            )}
-
-            {/* VIEWER OVERLAY */}
-            {selectedImage && (
-                <div className="fixed inset-0 z-[100] bg-black flex flex-col transition-opacity duration-300">
-                    <div className="flex items-center justify-between px-6 py-4 bg-black/50 backdrop-blur-md z-10 border-b border-white/5">
-                        <div className="flex items-center gap-6">
-                            <button onClick={() => setSelectedImage(null)} className="text-white hover:bg-white/10 p-2 rounded-full transition-all">
-                                <FiX size={24} />
-                            </button>
-                            <div className="hidden md:block">
-                                <h2 className="text-white font-bold text-sm">{galleryData?.galleryName || "kofiLartey Studio"}</h2>
-                                <p className="text-[9px] text-gray-400 uppercase tracking-widest font-black">Client Gallery Access</p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                            <div className="hidden sm:flex bg-white/5 border border-white/10 rounded-lg px-4 py-2 divide-x divide-white/10">
-                                <div className="pr-4 text-center">
-                                    <p className="text-[8px] text-gray-500 uppercase font-black">Size</p>
-                                    <p className="text-[10px] text-white font-mono">{selectedImage.sizeFormatted || "N/A"}</p>
-                                </div>
-                                <div className="pl-4 text-center">
-                                    <p className="text-[8px] text-gray-500 uppercase font-black">Dimensions</p>
-                                    <p className="text-[10px] text-white font-mono">
-                                        {selectedImage.dimensions?.width || "?"} × {selectedImage.dimensions?.height || "?"}
-                                    </p>
-                                </div>
-                            </div>
-                            <button onClick={() => setIsFavorite(!isFavorite)} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg border transition-all ${isFavorite ? 'bg-red-600 border-red-600 text-white' : 'bg-white/5 border-white/10 text-white hover:bg-white/10'}`}>
-                                <FiHeart size={14} fill={isFavorite ? "currentColor" : "none"} />
-                                <span className="text-[10px] font-bold uppercase tracking-widest">Favorite</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="flex-1 relative flex items-center justify-center p-4">
-                        <img src={selectedImage.imageUrl} className="max-w-full max-h-[80vh] object-contain shadow-2xl" alt={selectedImage.imageName} />
-                    </div>
-
-                    <div className="flex items-center justify-between px-8 py-6 bg-black border-t border-white/5 z-10">
-                        <div className="flex gap-12">
-                            <div>
-                                <p className="text-[8px] text-gray-500 uppercase font-black mb-1">Filename</p>
-                                <p className="text-[10px] text-white font-mono">{selectedImage.originalName || selectedImage.imageName}</p>
-                            </div>
-                            <div>
-                                <p className="text-[8px] text-gray-500 uppercase font-black mb-1">Size</p>
-                                <p className="text-[10px] text-white font-mono">{selectedImage.sizeFormatted}</p>
-                            </div>
-                            {selectedImage.dimensions && (
-                                <div>
-                                    <p className="text-[8px] text-gray-500 uppercase font-black mb-1">Dimensions</p>
-                                    <p className="text-[10px] text-white font-mono">{selectedImage.dimensions.width} × {selectedImage.dimensions.height}</p>
-                                </div>
-                            )}
-                        </div>
-                        <div className="flex items-center gap-4">
-                            <button className="text-gray-400 hover:text-white"><FiShare2 size={18} /></button>
-                            <button className="text-gray-400 hover:text-white"><FiInfo size={18} /></button>
-                        </div>
-                    </div>
-                </div>
-            )}
+              </button>
+            </div>
+          </div>
         </div>
+      </div>
     );
+  };
+
+  // Edit Gallery Modal
+  const EditModal = () => {
+    if (!showEditModal) return null;
+    
+    return (
+      <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+        <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl max-w-2xl w-full p-6 shadow-2xl">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-indigo-500/10 rounded-full">
+                <FiEdit2 className="text-indigo-400" size={20} />
+              </div>
+              <h3 className="text-xl font-bold text-white">Edit Gallery</h3>
+            </div>
+            <button 
+              onClick={() => setShowEditModal(false)}
+              className="text-gray-500 hover:text-white transition-colors"
+            >
+              <FiX size={20} />
+            </button>
+          </div>
+          
+          <div className="space-y-6">
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4 flex items-center gap-2">
+                <FiCamera size={14} /> Gallery Information
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-2">Gallery Name</label>
+                  <input
+                    type="text"
+                    value={editFormData.galleryName}
+                    onChange={(e) => setEditFormData({...editFormData, galleryName: e.target.value})}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-indigo-500 outline-none"
+                    placeholder="Gallery Name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-2">Expiration Period</label>
+                  <select
+                    value={editFormData.expirationPeriod}
+                    onChange={(e) => setEditFormData({...editFormData, expirationPeriod: e.target.value})}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-indigo-500 outline-none"
+                  >
+                    <option value="Never Expire">Never Expire</option>
+                    <option value="7 Days">7 Days</option>
+                    <option value="30 Days">30 Days</option>
+                    <option value="90 Days">90 Days</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4 flex items-center gap-2">
+                <FiUser size={14} /> Client Details
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-2">Client Name</label>
+                  <div className="relative">
+                    <FiUser className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
+                    <input
+                      type="text"
+                      value={editFormData.clientName}
+                      onChange={(e) => setEditFormData({...editFormData, clientName: e.target.value})}
+                      className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white text-sm focus:border-indigo-500 outline-none"
+                      placeholder="Client Name"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-2">Email Address</label>
+                  <div className="relative">
+                    <FiMail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
+                    <input
+                      type="email"
+                      value={editFormData.email}
+                      onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
+                      className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white text-sm focus:border-indigo-500 outline-none"
+                      placeholder="client@example.com"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4 flex items-center gap-2">
+                <FiLock size={14} /> Access Settings
+              </h4>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-2">Access Key</label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <FiKey className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
+                      <input
+                        type="text"
+                        value={editFormData.accessKey}
+                        onChange={(e) => setEditFormData({...editFormData, accessKey: e.target.value})}
+                        className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-indigo-400 text-sm font-mono focus:border-indigo-500 outline-none"
+                        placeholder="Access Key"
+                      />
+                    </div>
+                    <button
+                      onClick={regenerateAccessKey}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-colors"
+                    >
+                      Generate New
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10">
+                  <div>
+                    <p className="text-sm font-medium text-white">Allow Downloads</p>
+                    <p className="text-xs text-gray-500">Enable clients to download images from this gallery</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editFormData.allowDownloads}
+                      onChange={(e) => setEditFormData({...editFormData, allowDownloads: e.target.checked})}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex gap-3 mt-8">
+            <button
+              onClick={() => setShowEditModal(false)}
+              className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-gray-400 hover:text-white transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleUpdateGallery}
+              disabled={editLoading}
+              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {editLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <FiSave size={16} />
+                  Save Changes
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-[#050505] flex">
+      <SkipLink />
+      <Sidebar 
+        isMobileMenuOpen={mobileMenu.isOpen} 
+        closeMobileMenu={mobileMenu.close} 
+      />
+      
+      <main 
+        id="main-content"
+        className={`flex-1 flex flex-col transition-all duration-300 ${mobileMenu.isOpen ? 'ml-0' : ''} lg:ml-64`}
+        tabIndex={-1}
+      >
+        <DashboardNavbar onMenuToggle={mobileMenu.toggle} isMobileMenuOpen={mobileMenu.isOpen} />
+        
+        <div className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto space-y-4 md:space-y-8 pb-safe">
+          {/* Stats Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-6">
+            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 hover:border-indigo-500/20 transition-all">
+              <div className="flex items-center gap-3 mb-2">
+                <FiFolder className="text-indigo-400" size={20} />
+                <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Total Galleries</p>
+              </div>
+              <div className="flex items-baseline gap-4 mt-2">
+                <h3 className="text-4xl font-bold text-white">{stats.totalGalleries}</h3>
+                <span className="text-green-500 text-xs font-bold">All time</span>
+              </div>
+            </div>
+            
+            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 hover:border-indigo-500/20 transition-all">
+              <div className="flex items-center gap-3 mb-2">
+                <FiUsers className="text-indigo-400" size={20} />
+                <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Active Galleries</p>
+              </div>
+              <div className="flex items-baseline gap-4 mt-2">
+                <h3 className="text-4xl font-bold text-white">{stats.activeGalleries}</h3>
+                <span className="text-indigo-400 text-xs font-bold">Currently active</span>
+              </div>
+            </div>
+            
+            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 hover:border-indigo-500/20 transition-all">
+              <div className="flex items-center gap-3 mb-2">
+                <FiImage className="text-indigo-400" size={20} />
+                <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Total Images</p>
+              </div>
+              <div className="flex items-baseline gap-4 mt-2">
+                <h3 className="text-4xl font-bold text-white">{stats.totalImages}</h3>
+                <span className="text-green-500 text-xs font-bold">Across all galleries</span>
+              </div>
+            </div>
+            
+            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 hover:border-indigo-500/20 transition-all">
+              <div className="flex items-center gap-3 mb-2">
+                <FiHardDrive className="text-indigo-400" size={20} />
+                <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Storage Used</p>
+              </div>
+              <div className="mt-2">
+                <h3 className="text-4xl font-bold text-white">{stats.totalStorage} <span className="text-lg text-gray-500">GB</span></h3>
+                <div className="w-full bg-white/5 h-1.5 rounded-full mt-3 overflow-hidden">
+                  <div 
+                    className="bg-indigo-500 h-full transition-all duration-500" 
+                    style={{ width: `${Math.min((parseFloat(stats.totalStorage) / 5) * 100, 100)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="flex flex-col md:flex-row justify-between items-center gap-3 md:gap-4">
+            <div className="relative w-full md:w-96">
+              <FiSearch className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 text-gray-500" />
+              <input 
+                type="text" 
+                placeholder="Search by name, email, or gallery..." 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-white/[0.02] border border-white/5 rounded-xl py-3 pl-10 md:pl-12 pr-4 text-xs md:text-sm text-gray-300 outline-none focus:border-indigo-500/50 transition-all"
+              />
+            </div>
+            <div className="flex gap-2 md:gap-3 w-full md:w-auto">
+              <button 
+                onClick={() => { loadClients(); fetchStats(); }}
+                disabled={isLoading}
+                className="flex-1 md:flex-none flex items-center justify-center md:justify-start gap-2 px-3 md:px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/10 text-gray-300 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95 touch-target"
+              >
+                <FiRefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+                <span className="hidden sm:inline">Refresh</span>
+              </button>
+              <button 
+                onClick={() => window.location.href = '/gallery'}
+                className="flex-1 md:flex-none flex items-center justify-center md:justify-start gap-2 px-4 md:px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg active:scale-95 touch-target"
+              >
+                <FiUserPlus size={16} /> <span className="hidden sm:inline">Create New Client</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-600/10 border border-red-500/20 rounded-xl p-4 flex items-center gap-3">
+              <FiAlertCircle className="text-red-400 flex-shrink-0" size={18} />
+              <span className="text-red-400 text-sm">{error}</span>
+              <button onClick={() => setError("")} className="ml-auto text-red-400 hover:text-red-300">
+                <FiX size={18} />
+              </button>
+            </div>
+          )}
+
+          {/* Client Table/List */}
+          <div className="bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden">
+            {isLoading ? (
+              <div className="text-center py-20">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                <p className="text-gray-500 text-xs md:text-sm mt-4">Loading galleries...</p>
+              </div>
+            ) : filteredClients.length === 0 ? (
+              <div className="text-center py-20">
+                <div className="w-16 h-16 md:w-20 md:h-20 mx-auto mb-4 md:mb-6 rounded-full bg-white/5 flex items-center justify-center">
+                  <FiUsers size={24} md:size={32} className="text-gray-600" />
+                </div>
+                <p className="text-gray-500 text-sm">No galleries found</p>
+                <button 
+                  onClick={() => window.location.href = '/dashboard'}
+                  className="mt-4 px-4 md:px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold uppercase tracking-widest transition-all active:scale-95 touch-target"
+                >
+                  Go to Gallery
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* Mobile Card Layout */}
+                <div className="md:hidden divide-y divide-white/5">
+                  {filteredClients.map((client) => (
+                    <div key={client.id} className="p-4 hover:bg-white/[0.02] transition-colors">
+                      <div className="flex items-start gap-3 mb-3">
+                        <img 
+                          src={client.avatar} 
+                          alt={client.name} 
+                          className="w-12 h-12 rounded-xl object-cover ring-1 ring-white/10" 
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-white truncate">{client.name}</p>
+                          <p className="text-xs text-gray-400 truncate">{client.email}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full border w-fit ${getStatusColor(client.status)}`}>
+                              {client.status}
+                            </span>
+                            <span className="text-[9px] text-gray-500">• {client.galleryName}</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <div className="flex items-center gap-1 text-gray-500">
+                          <FiImage size={12} /> {client.imageCount} images
+                        </div>
+                        <div className="flex items-center gap-1 text-gray-500">
+                          <FiKey size={12} /> <code className="text-indigo-400 font-mono text-[10px]">{client.accessKey}</code>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/5">
+                        <button 
+                          onClick={() => handleCopyLink(client.link, client.id)}
+                          className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-white/5 rounded-lg text-gray-400 hover:text-indigo-400 transition-all active:scale-95 touch-target"
+                        >
+                          {copyStatus === client.id ? <FiCheck size={14} className="text-green-400" /> : <FiCopy size={14} />}
+                          <span className="text-xs">Link</span>
+                        </button>
+                        <a 
+                          href={client.link} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-white/5 rounded-lg text-gray-400 hover:text-indigo-400 transition-all active:scale-95 touch-target"
+                        >
+                          <FiExternalLink size={14} /> <span className="text-xs">View</span>
+                        </a>
+                        <button 
+                          onClick={() => handleEditGallery(client)}
+                          className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-white/5 rounded-lg text-gray-400 hover:text-yellow-400 transition-all active:scale-95 touch-target"
+                        >
+                          <FiEdit2 size={14} /> <span className="text-xs">Edit</span>
+                        </button>
+                        <button 
+                          onClick={() => openDeleteModal(client)}
+                          className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-white/5 rounded-lg text-gray-400 hover:text-red-400 transition-all active:scale-95 touch-target"
+                        >
+                          <FiTrash2 size={14} /> <span className="text-xs">Delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop Table Layout */}
+                <div className="hidden md:block">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left min-w-[800px]">
+                      <thead>
+                        <tr className="border-b border-white/5 text-[10px] uppercase font-bold text-gray-600 tracking-widest">
+                          <th className="px-6 md:px-8 py-4 md:py-6">CLIENT IDENTITY</th>
+                          <th className="px-6 md:px-8 py-4 md:py-6">CONTACT & ACCESS</th>
+                          <th className="px-6 md:px-8 py-4 md:py-6">STATUS</th>
+                          <th className="px-6 md:px-8 py-4 md:py-6">GALLERY INFO</th>
+                          <th className="px-6 md:px-8 py-4 md:py-6 text-right">ACTIONS</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {filteredClients.map((client) => (
+                          <tr key={client.id} className="group hover:bg-white/[0.02] transition-colors">
+                            <td className="px-6 md:px-8 py-4 md:py-6">
+                              <div className="flex items-center gap-3 md:gap-4">
+                                <img 
+                                  src={client.avatar} 
+                                  alt={client.name} 
+                                  className="w-10 h-10 md:w-12 md:h-12 rounded-xl object-cover ring-1 ring-white/10 group-hover:ring-indigo-500/50 transition-all" 
+                                />
+                                <div>
+                                  <p className="text-xs md:text-sm font-bold text-white group-hover:text-indigo-400 transition-colors">
+                                    {client.name}
+                                  </p>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <FiCalendar size={10} className="text-gray-600" />
+                                    <p className="text-[10px] text-gray-500">
+                                      Created: {formatDate(client.createdAt)}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            
+                            <td className="px-6 md:px-8 py-4 md:py-6">
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <FiMail size={12} className="text-gray-600" />
+                                  <span className="text-xs text-gray-400">{client.email}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <FiKey size={12} className="text-gray-600" />
+                                  <code className="text-[10px] md:text-[11px] text-indigo-400 font-mono bg-indigo-400/10 px-2 py-1 rounded">
+                                    {client.accessKey}
+                                  </code>
+                                  <button 
+                                    onClick={() => handleCopyAccessKey(client.accessKey, client.id)}
+                                    className="text-gray-500 hover:text-indigo-400 transition-colors"
+                                    title="Copy access key"
+                                  >
+                                    {copyStatus === `key-${client.id}` ? <FiCheck size={12} className="text-green-400" /> : <FiCopy size={12} />}
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+                            
+                            <td className="px-6 md:px-8 py-4 md:py-6">
+                              <div className="flex flex-col gap-1">
+                                <span className={`text-[9px] uppercase font-bold px-2 py-1 rounded-full border w-fit ${getStatusColor(client.status)}`}>
+                                  {client.status}
+                                </span>
+                                <span className="text-[9px] text-gray-600">{client.tag}</span>
+                              </div>
+                            </td>
+                            
+                            <td className="px-6 md:px-8 py-4 md:py-6">
+                              <p className="text-sm font-semibold text-indigo-400 group-hover:text-indigo-300 transition-colors">
+                                {client.galleryName}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1 md:mt-2">
+                                <span className="text-[10px] text-gray-500 flex items-center gap-1">
+                                  <FiImage size={10} /> {client.imageCount} images
+                                </span>
+                              </div>
+                            </td>
+                            
+                            <td className="px-6 md:px-8 py-4 md:py-6 text-right">
+                              <div className="flex justify-end items-center gap-1 md:gap-2">
+                                <button 
+                                  onClick={() => handleCopyLink(client.link, client.id)}
+                                  className="p-1.5 md:p-2 rounded-lg bg-white/10 hover:bg-indigo-600/20 text-gray-400 hover:text-indigo-400 transition-all duration-200 active:scale-95 touch-target"
+                                  title="Copy gallery link"
+                                >
+                                  {copyStatus === client.id ? <FiCheck size={14} md:size={16} className="text-green-400" /> : <FiCopy size={14} md:size={16} />}
+                                </button>
+                                
+                                <a 
+                                  href={client.link} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="p-1.5 md:p-2 rounded-lg bg-white/10 hover:bg-indigo-600/20 text-gray-400 hover:text-indigo-400 transition-all duration-200 active:scale-95 touch-target"
+                                  title="Open gallery"
+                                >
+                                  <FiExternalLink size={14} md:size={16} />
+                                </a>
+                                
+                                <button 
+                                  onClick={() => handleEditGallery(client)}
+                                  className="p-1.5 md:p-2 rounded-lg bg-white/10 hover:bg-yellow-600/20 text-gray-400 hover:text-yellow-400 transition-all duration-200 active:scale-95 touch-target"
+                                  title="Edit gallery"
+                                >
+                                  <FiEdit2 size={14} md:size={16} />
+                                </button>
+                                
+                                <button 
+                                  onClick={() => openDeleteModal(client)}
+                                  className="p-1.5 md:p-2 rounded-lg bg-white/10 hover:bg-red-600/20 text-gray-400 hover:text-red-400 transition-all duration-200 active:scale-95 touch-target"
+                                  title="Delete gallery"
+                                >
+                                  <FiTrash2 size={14} md:size={16} />
+                                </button>
+                                
+                                <button 
+                                  className="p-1.5 md:p-2 rounded-lg bg-white/10 hover:bg-white/20 text-gray-400 hover:text-white transition-all duration-200 active:scale-95 touch-target"
+                                  title="More options"
+                                >
+                                  <FiMoreHorizontal size={14} md:size={16} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
+            
+            {pagination.totalPages > 1 && (
+              <div className="p-4 md:p-6 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-3 md:gap-4 bg-black/20">
+                <p className="text-[10px] md:text-xs text-gray-600 font-bold uppercase tracking-widest">
+                  Showing {filteredClients.length} of {pagination.totalItems} galleries
+                </p>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={!pagination.hasPrevPage}
+                    className="px-3 md:px-4 py-2 rounded-lg bg-white/5 text-gray-300 text-xs border border-white/10 hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 touch-target"
+                  >
+                    Previous
+                  </button>
+                  <span className="px-3 md:px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs">
+                    {pagination.currentPage} / {pagination.totalPages}
+                  </span>
+                  <button 
+                    onClick={() => setCurrentPage(prev => Math.min(pagination.totalPages, prev + 1))}
+                    disabled={!pagination.hasNextPage}
+                    className="px-3 md:px-4 py-2 rounded-lg bg-white/5 text-gray-300 text-xs border border-white/10 hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 touch-target"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        <Footer />
+      </main>
+      
+      <DeleteModal />
+      <EditModal />
+    </div>
+  );
 };
 
-export default ClientGallery;
+export default Clients;
