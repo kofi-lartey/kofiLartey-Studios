@@ -1,10 +1,8 @@
 import axios from 'axios';
 
-const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, ''); // Removes trailing slash
+const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
-// Log to debug
 console.log('🌐 VITE_API_URL:', API_URL);
-console.log('📡 Full URL will be:', API_URL + '/users/register');
 
 const apiClient = axios.create({
   baseURL: API_URL,
@@ -14,10 +12,13 @@ const apiClient = axios.create({
 // Interceptor for requests
 apiClient.interceptors.request.use(
   (config) => {
-    // Add authorization token if available
-    const token = localStorage.getItem('authToken');
+    // ✅ USE CONSISTENT TOKEN KEY - try both
+    const token = localStorage.getItem('token') || localStorage.getItem('authToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      console.log('🔑 Token attached to request:', token.substring(0, 20) + '...');
+    } else {
+      console.warn('⚠️ No token found in localStorage');
     }
     return config;
   },
@@ -28,9 +29,8 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Handle errors globally
     if (error.response && error.response.status === 401) {
-      // Redirect to login if unauthorized
+      console.error('🔒 401 Unauthorized - redirecting to login');
       window.location.href = '/login';
     }
     return Promise.reject(error);
@@ -56,9 +56,7 @@ export const post = async (url, data = {}, config = {}) => {
       ...config,
       headers: {
         ...(config.headers || {}),
-        ...(isFormData
-          ? {}
-          : { 'Content-Type': 'application/json' }),
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       },
     });
 
@@ -77,9 +75,7 @@ export const put = async (url, data = {}, config = {}) => {
       ...config,
       headers: {
         ...(config.headers || {}),
-        ...(isFormData
-          ? {}
-          : { 'Content-Type': 'application/json' }),
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       },
     });
 
@@ -89,7 +85,7 @@ export const put = async (url, data = {}, config = {}) => {
   }
 };
 
-// Generic PATCH request (for partial updates)
+// Generic PATCH request
 export const patch = async (url, data, config = {}) => {
   try {
     const isFormData = data instanceof FormData;
@@ -98,9 +94,7 @@ export const patch = async (url, data, config = {}) => {
       ...config,
       headers: {
         ...(config.headers || {}),
-        ...(isFormData
-          ? {}
-          : { 'Content-Type': 'application/json' }),
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       },
     });
 
@@ -110,10 +104,17 @@ export const patch = async (url, data, config = {}) => {
   }
 };
 
-// Generic DELETE request
-export const del = async (url) => {
+// Generic DELETE request - ✅ NOW USING AXIOS WITH CONSISTENT TOKEN
+export const del = async (url, data = null) => {
   try {
-    const response = await apiClient.delete(url);
+    const config = {};
+    
+    // Only add body if data is provided
+    if (data) {
+      config.data = data;
+    }
+
+    const response = await apiClient.delete(url, config);
     return response.data;
   } catch (error) {
     throw error;
