@@ -6,10 +6,10 @@ const Footer = () => {
     const currentYear = new Date().getFullYear();
 
     const socialLinks = [
-        { Icon: FaGithub, href: 'https://github.com', label: 'GitHub' },
-        { Icon: FaLinkedin, href: 'https://linkedin.com', label: 'LinkedIn' },
-        { Icon: FaTwitter, href: 'https://twitter.com', label: 'Twitter' },
-        { Icon: FaInstagram, href: 'https://instagram.com', label: 'Instagram' },
+        { Icon: FaGithub, href: 'https://github.com/kofi-lartey?tab=repositories', label: 'GitHub' },
+        { Icon: FaLinkedin, href: 'https://www.linkedin.com/in/alpheaus-gberbie-b6b141326/', label: 'LinkedIn' },
+        { Icon: FaTwitter, href: 'https://x.com/GberbieAlpheaus', label: 'Twitter' },
+        { Icon: FaInstagram, href: 'https://www.instagram.com/kofi_lart/', label: 'Instagram' },
     ];
 
     const footerLinks = [
