@@ -22,6 +22,8 @@ import PressKit from './pages/PressKit';
 import { useEffect } from 'react';
 import { useLoading } from './context/LoadingContext';
 import ResendVerification from './pages/ResendVerification';
+import InstallButton from './components/InstallButton';
+import ClientInstallPrompt from './components/ClientInstallPrompt';
 
 const NavigationListener = () => {
   const location = useLocation();
@@ -114,6 +116,8 @@ function App() {
           <Route path="/api-docs" element={<APIDocumentation />} />
           <Route path="/press" element={<PressKit />} />
         </Routes>
+        <InstallButton />
+        <ClientInstallPrompt />
       </div>
     </AuthProvider>
   );
