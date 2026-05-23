@@ -56,40 +56,48 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (url.pathname.match(/\.(png|jpg|jpeg|svg|gif|webp|ico|woff|woff2|ttf|eot)$/)) {
-    event.respondWith(
-      caches.match(request).then((response) => {
-        return response || fetch(request).then((fetchResponse) => {
-          return caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, fetchResponse.clone());
-            return fetchResponse;
-          });
-        });
-      }).catch(() => '/favicon.svg')
-    );
-    return;
-  }
+   if (url.pathname.match(/\.(png|jpg|jpeg|svg|gif|webp|ico|woff|woff2|ttf|eot)$/)) {
+     event.respondWith(
+       caches.match(request).then((response) => {
+         return response || fetch(request).then((fetchResponse) => {
+           // Only cache http/https requests
+           if (request.url.startsWith('http')) {
+             return caches.open(CACHE_NAME).then((cache) => {
+               cache.put(request, fetchResponse.clone());
+               return fetchResponse;
+             });
+           }
+           return fetchResponse;
+         });
+       }).catch(() => '/favicon.svg')
+     );
+     return;
+   }
 
-  if (STATIC_PAGES.some(page => url.pathname === page || url.pathname.startsWith(page + '/'))) {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          return caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, response.clone());
-            return response;
-          });
-        })
-        .catch(() => {
-          return caches.match(request).then((cachedResponse) => {
-            if (cachedResponse) {
-              return cachedResponse;
-            }
-            return caches.match(OFFLINE_URL);
-          });
-        })
-    );
-    return;
-  }
+   if (STATIC_PAGES.some(page => url.pathname === page || url.pathname.startsWith(page + '/'))) {
+     event.respondWith(
+       fetch(request)
+         .then((response) => {
+           // Only cache http/https responses
+           if (response && response.type === 'basic') {
+             return caches.open(CACHE_NAME).then((cache) => {
+               cache.put(request, response.clone());
+               return response;
+             });
+           }
+           return response;
+         })
+         .catch(() => {
+           return caches.match(request).then((cachedResponse) => {
+             if (cachedResponse) {
+               return cachedResponse;
+             }
+             return caches.match(OFFLINE_URL);
+           });
+         })
+     );
+     return;
+   }
 
   event.respondWith(
     caches.match(request).then((response) => {
