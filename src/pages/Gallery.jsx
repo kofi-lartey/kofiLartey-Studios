@@ -1,5 +1,9 @@
 import { useState, useEffect } from "react";
-import { FiKey, FiLink, FiCopy, FiCheck, FiGrid, FiColumns, FiPlus, FiRefreshCw, FiSearch, FiMenu, FiExternalLink } from "react-icons/fi";
+import { 
+  FiKey, FiLink, FiCopy, FiCheck, FiGrid, FiColumns, FiPlus, 
+  FiRefreshCw, FiSearch, FiExternalLink, FiAlertCircle,
+  FiUser, FiMail, FiClock, FiShield, FiDownload, FiX, FiImage
+} from "react-icons/fi";
 import Sidebar from "../componets/Sidebar";
 import DashboardNavbar from "../componets/DashboardNavbar";
 import Footer from "../componets/Footer";
@@ -10,8 +14,8 @@ import SkipLink from "../components/SkipLink";
 
 const Gallery = () => {
   const [copied, setCopied] = useState(false);
+  const [copiedItem, setCopiedItem] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [galleryName, setGalleryName] = useState("");
   const [galleryNameSearch, setGalleryNameSearch] = useState("");
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
@@ -20,7 +24,6 @@ const Gallery = () => {
   const [accessKey, setAccessKey] = useState("");
   const [selectedGallery, setSelectedGallery] = useState(null);
   const [refreshUploads, setRefreshUploads] = useState(0);
-  const [recentUploadsKey, setRecentUploadsKey] = useState(0);
   const [generatedShareLink, setGeneratedShareLink] = useState("");
   const [showLinkCard, setShowLinkCard] = useState(false);
   const [allGalleries, setAllGalleries] = useState([]);
@@ -29,6 +32,8 @@ const Gallery = () => {
   const [creatingLink, setCreatingLink] = useState(false);
   const [existingConfiguration, setExistingConfiguration] = useState(null);
   const [checkingConfig, setCheckingConfig] = useState(false);
+  const [toast, setToast] = useState({ show: false, message: "", type: "success" });
+  const [error, setError] = useState(null);
   const mobileMenu = useMobileMenu();
 
   // Load all galleries from API on mount
@@ -38,11 +43,12 @@ const Gallery = () => {
 
   const fetchGalleries = async () => {
     setLoading(true);
+    setError(null);
     try {
       const response = await get('gallery/gallery/names');
       console.log('📁 Galleries fetched:', response);
 
-      if (response.success && response.data) {
+      if (response && response.success && response.data) {
         const formattedGalleries = response.data.map(gallery => ({
           id: gallery.id,
           name: gallery.galleryName,
@@ -53,40 +59,130 @@ const Gallery = () => {
           hasConfiguration: gallery.hasConfiguration || false
         }));
         setAllGalleries(formattedGalleries);
+      } else {
+        console.error('Invalid response format:', response);
+        setError('Failed to load galleries. Please refresh the page.');
       }
     } catch (error) {
       console.error('Error fetching galleries:', error);
+      setError(error.message || 'Failed to connect to server');
     } finally {
       setLoading(false);
     }
   };
 
-  // Check if gallery already has configuration
+  // Check if gallery already has configuration - FIXED with proper error handling
   const checkExistingConfiguration = async (galleryID) => {
+    if (!galleryID) {
+      console.warn('No gallery ID provided');
+      return false;
+    }
+    
     setCheckingConfig(true);
+    setError(null);
+    
     try {
-      const response = await get(`/gallery/main/${galleryID}/config`);
-      console.log('🔍 Existing config check:', response);
+      console.log(`🔍 Fetching config for gallery: ${galleryID}`);
       
-      if (response.success && response.data) {
-        setExistingConfiguration(response.data);
+      const response = await get(`/gallery/main/${galleryID}/config`);
+      
+      console.log('📦 Config response:', response);
+      
+      // Check if response is valid and has data
+      if (response && response.success === true && response.data) {
+        const config = response.data;
+        
+        console.log('✅ Config found:', config);
+        
+        // Extract URL from various possible field names
+        let shareUrl = config.galleryURL || 
+                       config.shareLink || 
+                       config.url || 
+                       config.publicUrl ||
+                       config.galleryUrl;
+        
+        // If URL is relative, make it absolute
+        if (shareUrl && !shareUrl.startsWith('http')) {
+          shareUrl = `${window.location.origin}${shareUrl}`;
+        }
+        
+        const accessKeyValue = config.accessKey || config.key;
+        
+        if (!shareUrl || !accessKeyValue) {
+          console.warn('⚠️ Config missing URL or Access Key');
+          setShowLinkCard(false);
+          setExistingConfiguration(null);
+          return false;
+        }
+        
+        // Update state with existing configuration
+        setGeneratedShareLink(shareUrl);
+        setAccessKey(accessKeyValue);
+        setExistingConfiguration(config);
         setShowLinkCard(true);
-        setGeneratedShareLink(response.data.galleryURL);
-        setAccessKey(response.data.accessKey);
+        
+        // Pre-fill form fields with existing data
+        if (config.clientInfo) {
+          setUserName(config.clientInfo.name || config.clientInfo.clientName || "");
+          setUserEmail(config.clientInfo.email || "");
+        }
+        
+        if (config.downloadPermission !== undefined) {
+          setDownloadPermissions(config.downloadPermission);
+        }
+        
+        if (config.expirationPeriod) {
+          setExpiration(config.expirationPeriod);
+        }
+        
+        showToastMessage("Existing configuration loaded successfully!", "success");
         return true;
-      } else {
-        setExistingConfiguration(null);
+      } 
+      
+      // Handle case where config doesn't exist
+      if (response && response.status === 404) {
+        console.log('📭 No configuration found');
         setShowLinkCard(false);
+        setExistingConfiguration(null);
+        setGeneratedShareLink("");
+        setAccessKey("");
         return false;
       }
+      
+      // Handle other response formats
+      if (response && response.data === null) {
+        console.log('📭 No configuration data');
+        setShowLinkCard(false);
+        setExistingConfiguration(null);
+        return false;
+      }
+      
+      return false;
+      
     } catch (error) {
-      // If 404 or no config found, that's fine
+      console.error('❌ Error checking configuration:', error);
+      
+      // Handle 404 as "no config found" (this is normal)
       if (error.response?.status === 404) {
-        setExistingConfiguration(null);
+        console.log('📭 Configuration not found (404) - This is normal for new galleries');
         setShowLinkCard(false);
+        setExistingConfiguration(null);
+        setGeneratedShareLink("");
+        setAccessKey("");
         return false;
       }
-      console.error('Error checking configuration:', error);
+      
+      // For other errors, show message but don't break the UI
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        setError('Authentication failed. Please log in again.');
+      } else if (error.response?.status === 500) {
+        setError('Server error. Please try again later.');
+      } else {
+        setError(error.message || 'Failed to load configuration');
+      }
+      
+      setShowLinkCard(false);
+      setExistingConfiguration(null);
       return false;
     } finally {
       setCheckingConfig(false);
@@ -99,16 +195,18 @@ const Gallery = () => {
       const response = await get(`/gallery/${galleryID}/images`);
       console.log('📸 Gallery images fetched:', response);
 
-      if (response.success && response.data) {
+      if (response && response.success && response.data) {
         const imagesData = response.data || [];
         const formattedImages = imagesData.map(img => ({
           id: img.imageId || img._id,
           url: img.imageUrl,
           name: img.imageName || img.originalName || 'Untitled',
-          size: img.size,
-          uploadedAt: img.uploadedAt
+          size: img.size || 0,
+          uploadedAt: img.uploadedAt || new Date()
         }));
         setGalleryPreviewImages(formattedImages.slice(0, 6));
+      } else {
+        setGalleryPreviewImages([]);
       }
     } catch (error) {
       console.error('Error fetching gallery images:', error);
@@ -118,58 +216,68 @@ const Gallery = () => {
 
   const handleSearch = () => {
     if (!galleryNameSearch && !searchTerm) {
-      console.log("Please select a gallery name or enter client info");
+      showToastMessage("Please select a gallery or enter search term", "error");
       return;
     }
 
-    const results = allGalleries.filter(g =>
-      (galleryNameSearch && g.name.toLowerCase().includes(galleryNameSearch.toLowerCase())) ||
-      (searchTerm && (g.name?.toLowerCase().includes(searchTerm.toLowerCase())))
+    const results = allGalleries.filter(gallery =>
+      (galleryNameSearch && gallery.name.toLowerCase().includes(galleryNameSearch.toLowerCase())) ||
+      (searchTerm && gallery.name.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     if (results.length === 1) {
       selectGallery(results[0]);
+    } else if (results.length > 1) {
+      showToastMessage(`Found ${results.length} galleries. Please select one from the list.`, "info");
+    } else {
+      showToastMessage("No gallery found matching your search", "error");
     }
   };
 
   const selectGallery = async (gallery) => {
+    console.log('🎯 Selecting gallery:', gallery);
+    
     setSelectedGallery(gallery);
-    setGalleryName(gallery.name);
     setRefreshUploads(prev => prev + 1);
     
-    // Reset configuration state
+    // Reset configuration state for new gallery
     setExistingConfiguration(null);
     setShowLinkCard(false);
     setGeneratedShareLink("");
     setAccessKey("");
+    setError(null);
+    
+    // Reset form fields if no existing config expected
+    if (!gallery.hasConfiguration) {
+      setUserName("");
+      setUserEmail("");
+      setExpiration("Never Expire");
+      setDownloadPermissions(false);
+    }
     
     // Fetch images for preview
-    fetchGalleryImages(gallery.galleryID);
+    await fetchGalleryImages(gallery.galleryID);
     
     // Check if gallery already has configuration
-    await checkExistingConfiguration(gallery.galleryID);
+    if (gallery.hasConfiguration) {
+      await checkExistingConfiguration(gallery.galleryID);
+    }
   };
 
-  // Create Gallery Share Link - Backend generates access key
+  // Create Gallery Share Link
   const handleCreateAndGenerate = async () => {
     if (!selectedGallery) {
-      alert("Please select a gallery first");
-      return;
-    }
-
-    if (selectedGallery.hasConfiguration) {
-      // Show existing configuration instead
-      await checkExistingConfiguration(selectedGallery.galleryID);
-      alert("This gallery already has a configuration. Viewing existing share link.");
+      showToastMessage("Please select a gallery first", "error");
       return;
     }
 
     if (!userName || !userEmail) {
-      alert("Please fill in all required fields");
+      showToastMessage("Please fill in all required fields", "error");
       return;
     }
 
     setCreatingLink(true);
+    setError(null);
 
     try {
       const payload = {
@@ -197,17 +305,35 @@ const Gallery = () => {
       const response = await post('/gallery/main/create', payload);
       console.log('✅ Gallery share response:', response);
 
-      if (response.success && response.data) {
+      if (response && response.success && response.data) {
         const galleryData = response.data;
-        setGeneratedShareLink(galleryData.galleryURL);
-        setAccessKey(galleryData.accessKey);
+        
+        // Extract URL from response
+        let shareUrl = galleryData.galleryURL || 
+                       galleryData.shareLink || 
+                       galleryData.url;
+        
+        if (!shareUrl && galleryData.accessKey) {
+          shareUrl = `${window.location.origin}/gallery/${selectedGallery.galleryID}?accessKey=${galleryData.accessKey}`;
+        }
+        
+        const accessKeyValue = galleryData.accessKey;
+        
+        console.log('📋 Generated - URL:', shareUrl, 'Access Key:', accessKeyValue);
+        
+        setGeneratedShareLink(shareUrl);
+        setAccessKey(accessKeyValue);
         setShowLinkCard(true);
         setExistingConfiguration(galleryData);
-
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        
+        showToastMessage("Gallery share link created successfully!", "success");
+        
+        // Update the gallery's hasConfiguration flag
+        setAllGalleries(prev => prev.map(g => 
+          g.id === selectedGallery.id ? { ...g, hasConfiguration: true } : g
+        ));
       } else {
-        throw new Error(response.message || 'Failed to generate link');
+        throw new Error(response?.message || 'Failed to generate link');
       }
     } catch (error) {
       console.error('Error creating gallery share:', error);
@@ -215,20 +341,33 @@ const Gallery = () => {
       // Check if error is because configuration already exists
       if (error.response?.data?.message?.includes('already exists') || 
           error.response?.status === 409) {
-        alert("This gallery already has a configuration. Loading existing share link...");
+        showToastMessage("This gallery already has a configuration. Loading existing share link...", "info");
         await checkExistingConfiguration(selectedGallery.galleryID);
       } else {
-        alert(error.response?.data?.message || error.message || 'Failed to generate share link');
+        const errorMsg = error.response?.data?.message || error.message || 'Failed to generate share link';
+        showToastMessage(errorMsg, "error");
       }
     } finally {
       setCreatingLink(false);
     }
   };
 
-  const handleCopy = (text) => {
+  const showToastMessage = (message, type = "success") => {
+    setToast({ show: true, message, type });
+    setTimeout(() => {
+      setToast({ show: false, message: "", type: "success" });
+    }, 3000);
+  };
+
+  const handleCopy = (text, item) => {
     navigator.clipboard.writeText(text);
+    setCopiedItem(item);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    showToastMessage("Copied to clipboard!", "success");
+    setTimeout(() => {
+      setCopied(false);
+      setCopiedItem(null);
+    }, 2000);
   };
 
   const handleDownloadToggle = () => {
@@ -239,34 +378,16 @@ const Gallery = () => {
     selectGallery(gallery);
   };
 
-  const handleGalleryNameChange = (e) => {
-    const value = e.target.value;
-    if (value === "new") {
-      alert("Please create a gallery first from the Dashboard upload section");
-      setGalleryName("");
-      return;
-    }
-    setGalleryName(value);
-    const selected = allGalleries.find(g => g.name === value);
-    if (selected) {
-      selectGallery(selected);
-    }
-  };
-
   const openShareLink = (url) => {
-    window.open(url, '_blank', 'noopener,noreferrer');
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
   };
 
   return (
     <div className="min-h-screen bg-[#050505] flex">
-      {/* Skip to main content link for accessibility */}
       <SkipLink />
-
-      {/* Sidebar with mobile menu props */}
-      <Sidebar
-        isMobileMenuOpen={mobileMenu.isOpen}
-        closeMobileMenu={mobileMenu.close}
-      />
+      <Sidebar isMobileMenuOpen={mobileMenu.isOpen} closeMobileMenu={mobileMenu.close} />
 
       <main
         id="main-content"
@@ -275,26 +396,63 @@ const Gallery = () => {
       >
         <DashboardNavbar onMenuToggle={mobileMenu.toggle} isMobileMenuOpen={mobileMenu.isOpen} />
 
-        <div className="flex-1 min-w-0 overflow-x-hidden p-4 md:p-8 max-w-7xl w-full mx-auto space-y-6 md:space-y-10 pb-safe">
+        <div className="flex-1 min-w-0 overflow-x-hidden p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6 lg:space-y-10 pb-safe">
+          
           {/* Header Section */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Gallery Management</h2>
-              <p className="text-gray-500 text-xs md:text-sm mt-2 max-w-xl">
+              <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Gallery Management</h2>
+              <p className="text-gray-500 text-xs sm:text-sm mt-2 max-w-xl">
                 Configure access permissions and generate secure sharing links for your portfolio.
               </p>
             </div>
           </div>
 
+          {/* Toast Notification */}
+          {toast.show && (
+            <div className={`fixed top-20 right-4 z-50 p-4 rounded-xl shadow-2xl animate-in slide-in-from-right duration-300 max-w-sm ${
+              toast.type === "success" ? 'bg-green-600/90 border border-green-500/50' :
+              toast.type === "error" ? 'bg-red-600/90 border border-red-500/50' :
+              'bg-blue-600/90 border border-blue-500/50'
+            }`}>
+              <div className="flex items-center gap-3">
+                {toast.type === "success" ? (
+                  <FiCheck size={18} className="text-white" />
+                ) : toast.type === "error" ? (
+                  <FiAlertCircle size={18} className="text-white" />
+                ) : (
+                  <FiAlertCircle size={18} className="text-white" />
+                )}
+                <p className="text-white text-sm break-words">{toast.message}</p>
+                <button onClick={() => setToast({ show: false, message: "", type: "success" })} className="ml-2 text-white/70 hover:text-white">
+                  <FiX size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-600/10 border border-red-500/20 rounded-xl p-4">
+              <div className="flex items-center gap-3">
+                <FiAlertCircle className="text-red-400" size={18} />
+                <p className="text-red-400 text-sm">{error}</p>
+                <button onClick={() => setError(null)} className="ml-auto text-red-400/70 hover:text-red-400">
+                  <FiX size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Existing Configuration Warning Banner */}
           {selectedGallery && existingConfiguration && (
             <div className="bg-amber-500/10 border-l-4 border-amber-500 rounded-r-2xl p-4 backdrop-blur-sm">
               <div className="flex items-start gap-3">
-                <div className="text-amber-400 text-xl">⚠️</div>
-                <div className="flex-1">
+                <FiAlertCircle className="text-amber-400 flex-shrink-0 mt-0.5" size={18} />
+                <div className="flex-1 min-w-0">
                   <p className="text-amber-400 font-bold text-sm">Existing Gallery Configuration Found</p>
                   <p className="text-gray-400 text-xs mt-1">
-                    This gallery already has a shared configuration. You can use the existing link below or update the configuration.
+                    This gallery already has a shared configuration. You can use the existing link below or create a new one.
                   </p>
                 </div>
               </div>
@@ -303,136 +461,147 @@ const Gallery = () => {
 
           {/* Generated Link Card */}
           {showLinkCard && generatedShareLink && (
-            <div className={`bg-gradient-to-r rounded-2xl p-4 md:p-5 backdrop-blur-sm overflow-hidden ${
+            <div className={`rounded-2xl p-4 sm:p-5 backdrop-blur-sm overflow-hidden ${
               existingConfiguration 
-                ? 'from-amber-600/20 to-orange-600/20 border border-amber-500/30'
-                : 'from-indigo-600/20 to-purple-600/20 border border-indigo-500/30'
+                ? 'bg-gradient-to-r from-amber-600/10 to-orange-600/10 border border-amber-500/30'
+                : 'bg-gradient-to-r from-indigo-600/10 to-purple-600/10 border border-indigo-500/30'
             }`}>
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 min-w-0">
-                {/* LEFT */}
-                <div className="flex-1 min-w-0 overflow-hidden">
-                  <div className="flex items-center gap-2 mb-2">
+              <div className="flex flex-col gap-4 min-w-0">
+                {/* Header */}
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                    <FiLink className="text-indigo-400" size={14} />
+                  </div>
+                  <div>
                     <p className="text-[10px] uppercase font-bold text-indigo-400 tracking-wider">
-                      {existingConfiguration ? "Existing Shareable Link" : "Shareable Link"}
+                      {existingConfiguration ? "Existing Shareable Link" : "New Shareable Link"}
                     </p>
                     {existingConfiguration && (
-                      <span className="text-[8px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">
-                        Existing
+                      <span className="text-[8px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full mt-1 inline-block">
+                        Previously Created
                       </span>
                     )}
                   </div>
+                </div>
 
-                  {/* LINK */}
-                  <div className="bg-black/30 border border-white/10 rounded-xl p-3 overflow-hidden">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm text-white font-mono break-all flex-1">
+                {/* Gallery URL */}
+                <div className="space-y-2">
+                  <label className="text-[10px] text-gray-500 uppercase tracking-wider">Gallery URL</label>
+                  <div className="bg-black/40 border border-white/10 rounded-xl p-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <p className="text-xs sm:text-sm text-white font-mono break-all flex-1">
                         {generatedShareLink}
                       </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => openShareLink(generatedShareLink)}
+                          className="p-2 bg-white/10 hover:bg-white/20 rounded-lg text-gray-400 hover:text-white transition-colors"
+                          title="Open in new tab"
+                        >
+                          <FiExternalLink size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleCopy(generatedShareLink, 'link')}
+                          className="p-2 bg-white/10 hover:bg-indigo-600/20 rounded-lg text-gray-400 hover:text-indigo-400 transition-colors"
+                          title="Copy link"
+                        >
+                          {copiedItem === 'link' ? <FiCheck size={14} className="text-green-400" /> : <FiCopy size={14} />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Access Key */}
+                <div className="space-y-2">
+                  <label className="text-[10px] text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                    <FiKey size={10} /> Access Key
+                  </label>
+                  <div className="bg-black/40 border border-white/10 rounded-xl p-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <code className="text-xs sm:text-sm text-indigo-400 font-mono break-all flex-1">
+                        {accessKey}
+                      </code>
                       <button
-                        onClick={() => openShareLink(generatedShareLink)}
-                        className="text-gray-500 hover:text-indigo-400 transition-colors flex-shrink-0"
-                        title="Open in new tab"
+                        onClick={() => handleCopy(accessKey, 'key')}
+                        className="p-2 bg-white/10 hover:bg-indigo-600/20 rounded-lg text-gray-400 hover:text-indigo-400 transition-colors self-start sm:self-auto"
+                        title="Copy access key"
                       >
-                        <FiExternalLink size={16} />
+                        {copiedItem === 'key' ? <FiCheck size={14} className="text-green-400" /> : <FiCopy size={14} />}
                       </button>
                     </div>
                   </div>
-
-                  {/* ACCESS KEY */}
-                  <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                    <p className="text-[10px] text-gray-500">
-                      Access Key:
-                    </p>
-                    <span className="text-indigo-400 font-mono break-all">
-                      {accessKey}
-                    </span>
-                    <button
-                      onClick={() => handleCopy(accessKey)}
-                      className="text-gray-500 hover:text-indigo-400 transition-colors"
-                    >
-                      <FiCopy size={12} />
-                    </button>
-                  </div>
-
-                  {/* Existing Config Info */}
-                  {existingConfiguration && existingConfiguration.clientInfo && (
-                    <div className="mt-3 pt-3 border-t border-white/10">
-                      <p className="text-[9px] text-gray-500">
-                        Created for: <span className="text-gray-400">{existingConfiguration.clientInfo?.name || 'Unknown'}</span>
-                        {existingConfiguration.clientInfo?.email && ` (${existingConfiguration.clientInfo.email})`}
-                      </p>
-                      {existingConfiguration.expirationDate && (
-                        <p className="text-[9px] text-gray-500 mt-1">
-                          Expires: {new Date(existingConfiguration.expirationDate).toLocaleDateString()}
-                        </p>
-                      )}
-                    </div>
-                  )}
                 </div>
 
-                {/* RIGHT */}
-                <div className="w-full md:w-auto flex-shrink-0 flex gap-2">
+                {/* Existing Config Info */}
+                {existingConfiguration && existingConfiguration.clientInfo && (
+                  <div className="mt-2 pt-3 border-t border-white/10">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <p className="text-[9px] text-gray-500">Client Name</p>
+                        <p className="text-white text-sm mt-1">{existingConfiguration.clientInfo?.name || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] text-gray-500">Email</p>
+                        <p className="text-white text-sm mt-1 break-all">{existingConfiguration.clientInfo?.email || 'N/A'}</p>
+                      </div>
+                      {existingConfiguration.expirationDate && (
+                        <div>
+                          <p className="text-[9px] text-gray-500">Expires</p>
+                          <p className="text-white text-sm mt-1">{new Date(existingConfiguration.expirationDate).toLocaleDateString()}</p>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-[9px] text-gray-500">Downloads</p>
+                        <p className="text-white text-sm mt-1">{existingConfiguration.downloadPermission ? 'Enabled' : 'Disabled'}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-3 mt-2">
                   <button
-                    onClick={() => handleCopy(generatedShareLink)}
-                    className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xs font-bold text-white transition-all"
+                    onClick={() => handleCopy(generatedShareLink, 'link')}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xs font-bold text-white transition-all active:scale-95"
                   >
                     <FiCopy size={14} />
-                    Copy Link
+                    Copy Full Link
                   </button>
                   <button
                     onClick={() => openShareLink(generatedShareLink)}
-                    className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold text-white transition-all"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold text-white transition-all active:scale-95"
                   >
                     <FiExternalLink size={14} />
-                    Preview
+                    Preview Gallery
                   </button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Configuration Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+          {/* Main Configuration Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+            
             {/* Left Column: Settings */}
-            <div className="bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl p-4 md:p-6 space-y-4 md:space-y-6 shadow-xl">
+            <div className="bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl p-4 sm:p-6 space-y-4 sm:space-y-6 shadow-xl">
               <div className="flex items-center gap-2">
                 <div className="w-1 h-6 bg-indigo-500 rounded-full" />
-                <h4 className="text-[11px] uppercase font-bold text-indigo-400 tracking-[0.2em]">Configuration</h4>
+                <h4 className="text-[11px] uppercase font-bold text-indigo-400 tracking-[0.2em]">Configuration Settings</h4>
               </div>
 
               <div className="space-y-5">
-                {/* Access Key Display - Only shows after generation */}
-                {accessKey && (
-                  <div>
-                    <label className="text-[10px] uppercase text-gray-500 font-bold tracking-wider mb-2 block">
-                      {existingConfiguration ? "Existing Access Key" : "Generated Access Key"}
-                    </label>
-                    <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-3 flex items-center justify-between">
-                      <span className="font-mono text-sm text-white tracking-wider">{accessKey}</span>
-                      <button
-                        onClick={() => handleCopy(accessKey)}
-                        className="text-gray-500 hover:text-indigo-400 transition-colors"
-                      >
-                        <FiCopy size={16} />
-                      </button>
-                    </div>
-                    <p className="text-[9px] text-gray-600 mt-2">
-                      {existingConfiguration ? "This key was previously generated" : "This key is automatically generated by the system"}
-                    </p>
-                  </div>
-                )}
-
-                {/* Link Expiration - Disable if existing config */}
+                {/* Link Expiration */}
                 <div>
                   <label className="text-[10px] uppercase text-gray-500 font-bold tracking-wider mb-2 block">
-                    Link Expiration
+                    <FiClock className="inline mr-1" size={10} /> Link Expiration
                   </label>
                   <select
                     value={expiration}
                     onChange={(e) => setExpiration(e.target.value)}
                     disabled={!!existingConfiguration}
-                    className={`w-full bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl py-2.5 px-4 text-sm text-gray-300 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all cursor-pointer hover:border-white/20 ${
-                      existingConfiguration ? 'opacity-50 cursor-not-allowed' : ''
+                    className={`w-full bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl py-2.5 px-4 text-sm text-gray-300 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all ${
+                      existingConfiguration ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-white/20'
                     }`}
                   >
                     <option className="bg-black">Never Expire</option>
@@ -441,21 +610,20 @@ const Gallery = () => {
                     <option className="bg-black">7 days</option>
                     <option className="bg-black">30 days</option>
                   </select>
-                  {existingConfiguration && (
-                    <p className="text-[9px] text-amber-500 mt-1">Cannot modify existing configuration</p>
-                  )}
                 </div>
 
-                {/* Download Permissions Toggle - Disable if existing config */}
+                {/* Download Permissions Toggle */}
                 <div className="flex items-center justify-between py-2 group">
                   <div>
-                    <p className="text-sm font-medium text-gray-200">Download Permissions</p>
+                    <p className="text-sm font-medium text-gray-200 flex items-center gap-2">
+                      <FiDownload size={14} /> Download Permissions
+                    </p>
                     <p className="text-[10px] text-gray-500 mt-0.5">Allow high-res downloads</p>
                   </div>
                   <button
                     onClick={handleDownloadToggle}
                     disabled={!!existingConfiguration}
-                    className={`relative w-11 h-6 rounded-full transition-all duration-300 shadow-[0_0_12px_rgba(79,70,229,0.4)] hover:shadow-[0_0_16px_rgba(79,70,229,0.6)] ${
+                    className={`relative w-11 h-6 rounded-full transition-all duration-300 ${
                       downloadPermissions ? 'bg-indigo-600' : 'bg-gray-700'
                     } ${existingConfiguration ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
@@ -465,28 +633,33 @@ const Gallery = () => {
                   </button>
                 </div>
 
-                {/* Premium Feature Badge */}
+                {/* Info Box */}
                 <div className="pt-2">
-                  <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-lg p-3">
-                    <p className="text-[9px] text-amber-400/80 uppercase tracking-wider font-bold">
-                      💎 Watermarking & Advanced Features Available on Pro Plan
-                    </p>
+                  <div className="bg-gradient-to-r from-amber-500/5 to-orange-500/5 border border-amber-500/15 rounded-xl p-3">
+                    <div className="flex items-start gap-2">
+                      <FiShield className="text-amber-400/70 flex-shrink-0 mt-0.5" size={12} />
+                      <p className="text-[9px] text-amber-400/70 leading-relaxed">
+                        💎 Advanced features like watermarking, analytics, and branding are available on Pro Plan
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Right Column: Client Details & Link Generation */}
-            <div className="lg:col-span-2 min-w-0 bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl p-4 md:p-6 shadow-xl">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
-                {/* Left Side: Search Existing Gallery */}
+            <div className="lg:col-span-2 min-w-0 bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl p-4 sm:p-6 shadow-xl">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+                
+                {/* Left Side: Select Gallery */}
                 <div className="space-y-6 min-w-0">
                   <div>
                     <h4 className="text-[10px] uppercase font-bold text-indigo-400 tracking-[0.2em] mb-3 flex items-center gap-2">
                       <FiSearch size={12} />
                       Select Gallery
                     </h4>
-                    <div className="space-y-3 relative">
+                    
+                    <div className="space-y-3">
                       <div>
                         <label className="block text-[9px] uppercase text-gray-500 tracking-wider mb-2">
                           Gallery Name
@@ -494,7 +667,7 @@ const Gallery = () => {
                         <select
                           value={galleryNameSearch}
                           onChange={(e) => setGalleryNameSearch(e.target.value)}
-                          className="w-full bg-black/20 border border-white/10 rounded-xl py-2.5 px-4 text-sm text-white outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all cursor-pointer"
+                          className="w-full bg-black/20 border border-white/10 rounded-xl py-2.5 px-4 text-sm text-white outline-none focus:border-indigo-500 transition-all"
                           disabled={loading}
                         >
                           <option value="" className="bg-black">-- Select a gallery --</option>
@@ -509,46 +682,47 @@ const Gallery = () => {
                       <div className="relative">
                         <input
                           type="text"
-                          placeholder="Or search by gallery name..."
+                          placeholder="Search by gallery name..."
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
-                          className="w-full bg-black/20 border border-white/10 rounded-xl py-2.5 px-4 pr-28 text-sm text-white placeholder:text-gray-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
+                          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                          className="w-full bg-black/20 border border-white/10 rounded-xl py-2.5 px-4 pr-28 text-sm text-white placeholder:text-gray-600 focus:border-indigo-500 outline-none transition-all"
                         />
                         <button
                           onClick={handleSearch}
-                          className="absolute right-1.5 top-1/2 -translate-y-1/2 bg-indigo-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-indigo-500 transition-all shadow-lg"
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 bg-indigo-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-indigo-500 transition-all"
                         >
                           Search
                         </button>
                       </div>
                     </div>
 
-                    {/* All Galleries List */}
+                    {/* Galleries List */}
                     {allGalleries.length > 0 && (
                       <div className="mt-4">
                         <label className="text-[10px] uppercase text-gray-500 font-bold tracking-wider mb-2 block">
-                          Quick Select Gallery
+                          Quick Select
                         </label>
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                        <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
                           {allGalleries.map((gallery) => (
                             <button
                               key={gallery.id}
                               onClick={() => handleGallerySelectFromList(gallery)}
-                              className={`w-full text-left p-2 rounded-lg transition-all ${
+                              className={`w-full text-left p-3 rounded-xl transition-all ${
                                 selectedGallery?.id === gallery.id 
                                   ? 'bg-indigo-600/20 border border-indigo-500/30' 
                                   : 'bg-white/5 border border-white/10 hover:bg-white/10'
                               }`}
                             >
-                              <div className="flex items-center justify-between">
-                                <p className="text-sm font-medium text-white">{gallery.name}</p>
+                              <div className="flex items-center justify-between flex-wrap gap-1">
+                                <p className="text-sm font-medium text-white truncate">{gallery.name}</p>
                                 {gallery.hasConfiguration && (
-                                  <span className="text-[8px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">
+                                  <span className="text-[8px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full whitespace-nowrap">
                                     Configured
                                   </span>
                                 )}
                               </div>
-                              <p className="text-[10px] text-gray-400">ID: {gallery.galleryID}</p>
+                              <p className="text-[10px] text-gray-400 mt-1">ID: {gallery.galleryID}</p>
                               <p className="text-[9px] text-gray-500">{gallery.imageCount || 0} images</p>
                             </button>
                           ))}
@@ -556,44 +730,42 @@ const Gallery = () => {
                       </div>
                     )}
 
+                    {/* Selected Gallery Indicator */}
                     {selectedGallery && (
                       <div className="mt-4 p-3 bg-indigo-600/10 border border-indigo-500/20 rounded-xl">
                         <p className="text-[10px] text-indigo-400 font-bold">✓ Gallery Selected</p>
-                        <p className="text-sm text-white mt-1">{selectedGallery.name}</p>
+                        <p className="text-sm text-white mt-1 font-medium">{selectedGallery.name}</p>
                         <p className="text-[10px] text-gray-400">ID: {selectedGallery.galleryID}</p>
-                        {selectedGallery.hasConfiguration && (
-                          <p className="text-[9px] text-amber-400 mt-1">⚠️ This gallery already has a configuration</p>
-                        )}
                       </div>
                     )}
                   </div>
                 </div>
 
                 {/* Right Side: Client Details */}
-                <div className="bg-gradient-to-br from-white/[0.02] to-white/[0.01] border border-white/10 rounded-2xl p-4 md:p-5 relative overflow-hidden hover:border-white/15 transition-all">
-                  <div className="absolute top-0 right-0 p-3 opacity-10">
-                    <FiPlus size={48} className="text-white" />
+                <div className="bg-gradient-to-br from-white/[0.02] to-white/[0.01] border border-white/10 rounded-2xl p-4 sm:p-5 relative overflow-hidden hover:border-white/15 transition-all">
+                  <div className="absolute top-0 right-0 p-3 opacity-5">
+                    <FiUser size={48} className="text-white" />
                   </div>
 
                   <div className="relative z-10">
-                    <h4 className="text-[10px] md:text-xs uppercase font-bold text-indigo-400 tracking-[0.2em] mb-4 flex items-center gap-2">
+                    <h4 className="text-[10px] uppercase font-bold text-indigo-400 tracking-[0.2em] mb-4 flex items-center gap-2">
                       <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
                       Client Information
                     </h4>
 
                     <div className="space-y-4">
-                      <div className="group">
-                        <label className="block text-[9px] uppercase text-gray-500 tracking-wider mb-1 group-focus-within:text-indigo-400 transition-colors">
+                      <div>
+                        <label className="block text-[9px] uppercase text-gray-500 tracking-wider mb-1">
                           Selected Gallery
                         </label>
-                        <div className="bg-black/20 border border-white/10 rounded-xl py-2.5 px-4 text-xs md:text-sm text-gray-400">
+                        <div className="bg-black/20 border border-white/10 rounded-xl py-2.5 px-4 text-xs sm:text-sm text-gray-400 break-words">
                           {selectedGallery ? selectedGallery.name : 'No gallery selected'}
                         </div>
                       </div>
 
-                      <div className="group">
-                        <label className="block text-[9px] uppercase text-gray-500 tracking-wider mb-1 group-focus-within:text-indigo-400 transition-colors">
-                          Full Name *
+                      <div>
+                        <label className="block text-[9px] uppercase text-gray-500 tracking-wider mb-1">
+                          <FiUser className="inline mr-1" size={10} /> Full Name *
                         </label>
                         <input
                           type="text"
@@ -601,15 +773,15 @@ const Gallery = () => {
                           value={userName}
                           onChange={(e) => setUserName(e.target.value)}
                           disabled={!!existingConfiguration}
-                          className={`w-full bg-transparent border-b border-white/10 py-2.5 text-xs md:text-sm text-white placeholder:text-gray-700 focus:border-indigo-500 outline-none transition-all ${
+                          className={`w-full bg-transparent border-b border-white/10 py-2.5 text-xs sm:text-sm text-white placeholder:text-gray-700 focus:border-indigo-500 outline-none transition-all ${
                             existingConfiguration ? 'opacity-50 cursor-not-allowed' : ''
                           }`}
                         />
                       </div>
 
-                      <div className="group">
-                        <label className="block text-[9px] uppercase text-gray-500 tracking-wider mb-1 group-focus-within:text-indigo-400 transition-colors">
-                          Email Address *
+                      <div>
+                        <label className="block text-[9px] uppercase text-gray-500 tracking-wider mb-1">
+                          <FiMail className="inline mr-1" size={10} /> Email Address *
                         </label>
                         <input
                           type="email"
@@ -617,7 +789,7 @@ const Gallery = () => {
                           value={userEmail}
                           onChange={(e) => setUserEmail(e.target.value)}
                           disabled={!!existingConfiguration}
-                          className={`w-full bg-transparent border-b border-white/10 py-2.5 text-xs md:text-sm text-white placeholder:text-gray-700 focus:border-indigo-500 outline-none transition-all ${
+                          className={`w-full bg-transparent border-b border-white/10 py-2.5 text-xs sm:text-sm text-white placeholder:text-gray-700 focus:border-indigo-500 outline-none transition-all ${
                             existingConfiguration ? 'opacity-50 cursor-not-allowed' : ''
                           }`}
                         />
@@ -626,7 +798,7 @@ const Gallery = () => {
                       <button
                         onClick={handleCreateAndGenerate}
                         disabled={!selectedGallery || creatingLink || checkingConfig}
-                        className={`w-full mt-4 md:mt-6 text-white text-[11px] md:text-xs font-bold uppercase tracking-widest py-3 rounded-xl transition-all duration-300 shadow-xl active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${
+                        className={`w-full mt-4 text-white text-[11px] font-bold uppercase tracking-widest py-3 rounded-xl transition-all duration-300 shadow-xl active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${
                           existingConfiguration
                             ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500'
                             : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500'
@@ -651,41 +823,34 @@ const Gallery = () => {
                 </div>
               </div>
 
-              {/* Footer / Status Bar */}
+              {/* Status Bar */}
               <div className="mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-white/10 pt-5">
                 <div className="flex items-center gap-2">
                   <div className="relative">
                     <span className={`w-2 h-2 rounded-full absolute animate-ping ${
-                      existingConfiguration ? 'bg-amber-500' : 'bg-green-500'
+                      selectedGallery && existingConfiguration ? 'bg-amber-500' : selectedGallery ? 'bg-green-500' : 'bg-gray-500'
                     }`} />
                     <span className={`w-2 h-2 rounded-full relative ${
-                      existingConfiguration ? 'bg-amber-500' : 'bg-green-500'
+                      selectedGallery && existingConfiguration ? 'bg-amber-500' : selectedGallery ? 'bg-green-500' : 'bg-gray-500'
                     }`} />
                   </div>
                   <p className="text-[9px] text-gray-500 uppercase tracking-wider font-bold">
                     {selectedGallery 
                       ? existingConfiguration 
                         ? `EXISTING CONFIGURATION: ${selectedGallery.name}` 
-                        : `ACTIVE GALLERY: ${selectedGallery.name}`
-                      : "SYSTEM READY: SELECT A GALLERY FIRST"}
+                        : `READY: ${selectedGallery.name}`
+                      : "SELECT A GALLERY TO CONTINUE"}
                   </p>
                 </div>
-
-                {copied && (
-                  <div className="bg-indigo-500/20 backdrop-blur-sm border border-indigo-500/30 text-indigo-200 px-4 py-1.5 rounded-full text-[10px] font-bold flex items-center gap-2 animate-in slide-in-from-right duration-300">
-                    <FiCheck size={12} strokeWidth={3} />
-                    Copied to Clipboard!
-                  </div>
-                )}
               </div>
             </div>
           </div>
 
-          {/* Recent Uploads */}
+          {/* Recent Uploads Section */}
           {selectedGallery && (
-            <div className="mt-6 md:mt-8">
+            <div className="mt-6 lg:mt-8">
               <RecentUploads
-                key={recentUploadsKey}
+                key={refreshUploads}
                 refreshTrigger={refreshUploads}
                 selectedGallery={selectedGallery}
               />
@@ -693,36 +858,36 @@ const Gallery = () => {
           )}
 
           {/* Gallery Preview Section */}
-          <section className="pt-4 md:pt-6">
-            <div className="flex justify-between items-end mb-4 md:mb-8 border-b border-white/5 pb-4">
+          <section className="pt-4 lg:pt-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 mb-4 lg:mb-8 border-b border-white/5 pb-4">
               <div>
-                <h3 className="text-xl md:text-2xl font-bold text-white">
+                <h3 className="text-xl lg:text-2xl font-bold text-white">
                   {selectedGallery ? `${selectedGallery.name} Preview` : "Gallery Preview"}
                 </h3>
-                <p className="text-gray-500 text-xs md:text-sm mt-1">
+                <p className="text-gray-500 text-xs sm:text-sm mt-1">
                   {selectedGallery ? `${galleryPreviewImages.length} images in this gallery` : "Select a gallery to preview images."}
                 </p>
               </div>
               <div className="flex gap-3 text-gray-500">
-                <FiGrid className="cursor-pointer hover:text-white" />
-                <FiColumns className="cursor-pointer text-white" />
+                <FiGrid className="cursor-pointer hover:text-white transition-colors" />
+                <FiColumns className="cursor-pointer text-white transition-colors" />
               </div>
             </div>
 
             {selectedGallery && galleryPreviewImages.length > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-6">
                 {galleryPreviewImages.map((img, index) => (
-                  <div key={img.id || index} className="group relative aspect-[4/5] rounded-xl md:rounded-2xl overflow-hidden border border-white/5 bg-white/5">
+                  <div key={img.id || index} className="group relative aspect-[4/5] rounded-xl lg:rounded-2xl overflow-hidden border border-white/5 bg-white/5">
                     <img
                       src={img.url}
                       alt={img.name}
                       className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 group-hover:scale-105"
                       loading="lazy"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-3 md:p-4 flex flex-col justify-end">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-3 lg:p-4 flex flex-col justify-end">
                       <p className="text-xs font-bold text-white truncate">{img.name}</p>
-                      <p className="text-[9px] md:text-[10px] text-gray-400 mt-1">
-                        {(img.size / 1024 / 1024).toFixed(1)} MB • {img.uploadedAt ? new Date(img.uploadedAt).toLocaleDateString() : 'Recent'}
+                      <p className="text-[9px] lg:text-[10px] text-gray-400 mt-1">
+                        {(img.size / 1024 / 1024).toFixed(1)} MB
                       </p>
                     </div>
                   </div>
@@ -732,11 +897,19 @@ const Gallery = () => {
               <div className="text-center py-20 border border-white/5 rounded-3xl bg-white/[0.01]">
                 {selectedGallery ? (
                   <>
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/5 flex items-center justify-center">
+                      <FiImage size={24} className="text-gray-600" />
+                    </div>
                     <p className="text-gray-500 text-sm">No images uploaded to this gallery yet.</p>
                     <p className="text-gray-600 text-xs mt-2">Upload images from the dashboard to see them here.</p>
                   </>
                 ) : (
-                  <p className="text-gray-500 text-sm">Select a gallery from the list to preview images.</p>
+                  <>
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/5 flex items-center justify-center">
+                      <FiGrid size={24} className="text-gray-600" />
+                    </div>
+                    <p className="text-gray-500 text-sm">Select a gallery from the list to preview images.</p>
+                  </>
                 )}
               </div>
             )}
@@ -745,8 +918,6 @@ const Gallery = () => {
 
         <Footer />
       </main>
-
-      {/* Mobile menu overlay handled by Sidebar */}
     </div>
   );
 };
