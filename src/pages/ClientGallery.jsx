@@ -20,29 +20,130 @@ import NavBar from "../componets/NavBar";
 import Footer from "../componets/Footer";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Loader from "../components/Loader";
-import { post } from "../utils/apiCall";
+import { post, get } from "../utils/apiCall";
 
-// Helper function to download image from URL
-const downloadImage = async (url, filename) => {
+// Helper function to download single image using server API
+const downloadImageFromServer = async (galleryId, imageId, filename) => {
     try {
-        const response = await fetch(url);
+        // Use server endpoint for secure download
+        const response = await fetch(
+            `${process.env.REACT_APP_API_URL}/gallery/${galleryId}/public-download/${imageId}`,
+            {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include'
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error(`Download failed: ${response.statusText}`);
+        }
+
+        // Get the blob from response
         const blob = await response.blob();
+        
+        // Create download link
         const blobUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = blobUrl;
         link.download = filename || 'image.jpg';
+        
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        
+        // Clean up
         window.URL.revokeObjectURL(blobUrl);
+        
+        return true;
     } catch (error) {
         console.error('Download error:', error);
-        window.open(url, '_blank');
+        throw error;
+    }
+};
+
+// Helper to download all images as ZIP using server API
+const downloadAllAsZip = async (galleryId, galleryName, onProgress) => {
+    try {
+        onProgress?.({
+            current: 0,
+            total: 100,
+            percentage: 10,
+            currentImage: 'Preparing download...'
+        });
+
+        // Use server endpoint for ZIP download
+        const response = await fetch(
+            `${process.env.REACT_APP_API_URL}/gallery/${galleryId}/public-download-all`,
+            {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include'
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error(`Download failed: ${response.statusText}`);
+        }
+
+        onProgress?.({
+            current: 50,
+            total: 100,
+            percentage: 50,
+            currentImage: 'Creating ZIP file...'
+        });
+
+        // Get the ZIP blob from response
+        const blob = await response.blob();
+        
+        // Get filename from Content-Disposition header or use default
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = `${galleryName || 'gallery'}_gallery.zip`;
+        if (contentDisposition) {
+            const match = contentDisposition.match(/filename="(.+)"/);
+            if (match) filename = match[1];
+        }
+        
+        onProgress?.({
+            current: 80,
+            total: 100,
+            percentage: 80,
+            currentImage: 'Preparing download...'
+        });
+        
+        // Create download link
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = filename;
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Clean up
+        window.URL.revokeObjectURL(blobUrl);
+        
+        onProgress?.({
+            current: 100,
+            total: 100,
+            percentage: 100,
+            currentImage: 'Complete!'
+        });
+        
+        return true;
+    } catch (error) {
+        console.error('ZIP download error:', error);
+        throw error;
     }
 };
 
 // Slideshow Modal Component
-const SlideshowModal = ({ images, galleryName, onClose, initialIndex = 0, allowDownload = false }) => {
+const SlideshowModal = ({ images, galleryName, galleryId, onClose, initialIndex = 0, allowDownload = false }) => {
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
     const [isPlaying, setIsPlaying] = useState(true);
     const [showControls, setShowControls] = useState(true);
@@ -72,12 +173,20 @@ const SlideshowModal = ({ images, galleryName, onClose, initialIndex = 0, allowD
     };
 
     const handleDownloadCurrent = async () => {
-        if (!allowDownload) return;
+        if (!allowDownload || !galleryId) return;
         setIsDownloading(true);
-        const url = images[currentIndex];
-        const filename = `gallery-image-${currentIndex + 1}.jpg`;
-        await downloadImage(url, filename);
-        setIsDownloading(false);
+        const currentImage = images[currentIndex];
+        try {
+            await downloadImageFromServer(
+                galleryId,
+                currentImage.imageId,
+                currentImage.originalName || `image-${currentIndex + 1}.jpg`
+            );
+        } catch (error) {
+            console.error('Download error:', error);
+        } finally {
+            setIsDownloading(false);
+        }
     };
 
     useEffect(() => {
@@ -163,7 +272,7 @@ const SlideshowModal = ({ images, galleryName, onClose, initialIndex = 0, allowD
 
             <div className="flex-1 flex items-center justify-center p-4">
                 <img
-                    src={images[currentIndex]}
+                    src={images[currentIndex].imageUrl}
                     alt={`Slide ${currentIndex + 1}`}
                     className="max-w-full max-h-[85vh] object-contain shadow-2xl"
                     loading="lazy"
@@ -226,6 +335,8 @@ const ClientGallery = () => {
     const [showSlideshow, setShowSlideshow] = useState(false);
     const [slideshowStartIndex, setSlideshowStartIndex] = useState(0);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [downloadProgress, setDownloadProgress] = useState({ current: 0, total: 0, percentage: 0, currentImage: '' });
+    const [galleryId, setGalleryId] = useState(null);
 
     // Check URL for accessKey on mount
     useEffect(() => {
@@ -252,6 +363,7 @@ const ClientGallery = () => {
                 const gallery = response.data;
                 setGalleryData(gallery);
                 setImages(gallery.images || []);
+                setGalleryId(gallery.galleryId || gallery._id);
                 setIsAuthenticated(true);
                 setRequiresAccessKey(false);
             } else {
@@ -283,19 +395,35 @@ const ClientGallery = () => {
         await validateAndLoadGallery(accessKey.trim());
     };
 
-    // Download single image
-    const handleDownload = async (e, url, filename) => {
-        e.stopPropagation();
-        
+    // Download single image using server API
+    const handleDownload = async (e, image) => {
+        if (e) {
+            e.stopPropagation();
+        }
+
         if (!isDownloadAllowed) {
             setError("Download permission not granted for this gallery");
             setTimeout(() => setError(""), 3000);
             return;
         }
 
+        if (!galleryId || !image.imageId) {
+            setError("Unable to download: Missing gallery or image information");
+            setTimeout(() => setError(""), 3000);
+            return;
+        }
+
         setIsDownloading(true);
+        setError("");
+
         try {
-            await downloadImage(url, filename || `image_${Date.now()}.jpg`);
+            await downloadImageFromServer(
+                galleryId,
+                image.imageId,
+                image.originalName || image.imageName || 'image.jpg'
+            );
+            setError("Download started successfully!");
+            setTimeout(() => setError(""), 2000);
         } catch (error) {
             console.error('Download error:', error);
             setError("Failed to download image. Please try again.");
@@ -305,7 +433,7 @@ const ClientGallery = () => {
         }
     };
 
-    // Download all images as a zip
+    // Download all images as ZIP using server API
     const handleDownloadAll = async () => {
         if (!isDownloadAllowed) {
             setError("Download permission not granted for this gallery");
@@ -318,50 +446,32 @@ const ClientGallery = () => {
             return;
         }
 
+        if (!galleryId) {
+            setError("Unable to download: Gallery information missing");
+            setTimeout(() => setError(""), 3000);
+            return;
+        }
+
         setIsDownloading(true);
-        setError("");
+        setDownloadProgress({ current: 0, total: images.length, percentage: 0, currentImage: 'Preparing download...' });
 
         try {
-            const JSZip = (await import('jszip')).default;
-            const zip = new JSZip();
+            await downloadAllAsZip(galleryId, galleryData?.galleryName, (progress) => {
+                setDownloadProgress(progress);
+                setError(progress.currentImage);
+            });
             
-            let downloadedCount = 0;
-            
-            for (let i = 0; i < images.length; i++) {
-                const img = images[i];
-                try {
-                    const response = await fetch(img.imageUrl);
-                    const blob = await response.blob();
-                    const filename = img.originalName || `image_${i + 1}.jpg`;
-                    zip.file(filename, blob);
-                    downloadedCount++;
-                } catch (err) {
-                    console.error(`Failed to download ${img.imageName}:`, err);
-                }
-            }
-            
-            if (downloadedCount > 0) {
-                const zipBlob = await zip.generateAsync({ type: 'blob' });
-                const zipUrl = window.URL.createObjectURL(zipBlob);
-                const link = document.createElement('a');
-                link.href = zipUrl;
-                link.download = `${galleryData?.galleryName || 'gallery'}_images.zip`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                window.URL.revokeObjectURL(zipUrl);
-                
-                setError(`${downloadedCount} of ${images.length} images downloaded successfully!`);
-                setTimeout(() => setError(""), 3000);
-            } else {
-                throw new Error("No images could be downloaded");
-            }
+            setError("Download completed successfully!");
+            setTimeout(() => setError(""), 3000);
         } catch (error) {
             console.error('Download all error:', error);
-            setError("Failed to download images. Please try again.");
-            setTimeout(() => setError(""), 3000);
+            setError("Failed to download gallery. Please try again.");
+            setTimeout(() => setError(""), 4000);
         } finally {
             setIsDownloading(false);
+            setTimeout(() => {
+                setDownloadProgress({ current: 0, total: 0, percentage: 0, currentImage: '' });
+            }, 2000);
         }
     };
 
@@ -498,7 +608,7 @@ const ClientGallery = () => {
                             {galleryData?.galleryName || "Client Gallery"}
                         </h1>
                         <div className="flex flex-wrap items-center gap-6 text-gray-400 text-xs font-bold uppercase tracking-widest">
-                            <span className="flex items-center gap-2"><FiCamera className="text-indigo-500" /> {galleryData?.studioName || "kofiLartey Studio"}</span>
+                            <span className="flex items-center gap-2"><FiCamera className="text-indigo-500" /> {galleryData?.studioName || "Studio"}</span>
                             <span className="flex items-center gap-2"><FiClock className="text-indigo-500" /> {images.length} High-Resolution Captures</span>
                             {!isDownloadAllowed && (
                                 <span className="flex items-center gap-2 text-amber-500/70">
@@ -508,15 +618,24 @@ const ClientGallery = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-col items-end gap-3">
+                    <div className="flex flex-col items-end gap-3 w-full md:w-auto">
                         {isDownloadAllowed && (
                             <button
                                 onClick={handleDownloadAll}
                                 disabled={images.length === 0 || isDownloading}
-                                className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-bold text-xs flex items-center gap-3 transition-all shadow-xl shadow-indigo-600/20 active:scale-95 w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-bold text-xs flex items-center justify-center gap-3 transition-all shadow-xl shadow-indigo-600/20 active:scale-95 w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                <FiDownload className="text-sm" /> 
-                                {isDownloading ? 'Preparing Download...' : 'Download All Gallery'}
+                                {isDownloading ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        <span>{downloadProgress.percentage > 0 ? `${downloadProgress.percentage}%` : 'Preparing...'}</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <FiDownload className="text-sm" />
+                                        Download All ({images.length} images)
+                                    </>
+                                )}
                             </button>
                         )}
                         {galleryData?.expirationPeriod && galleryData.expirationPeriod !== "Never Expire" && galleryData.expiresAt && (
@@ -526,6 +645,25 @@ const ClientGallery = () => {
                         )}
                     </div>
                 </div>
+
+                {/* Download Progress Bar */}
+                {isDownloading && downloadProgress.percentage > 0 && downloadProgress.percentage < 100 && (
+                    <div className="fixed bottom-20 left-4 right-4 md:left-auto md:right-6 md:w-80 z-50 bg-black/90 backdrop-blur-lg border border-indigo-500/30 rounded-xl p-3 shadow-2xl">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Downloading</span>
+                            <span className="text-[10px] text-white font-mono">{downloadProgress.percentage}%</span>
+                        </div>
+                        <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+                            <div 
+                                className="bg-indigo-500 h-full transition-all duration-300 rounded-full"
+                                style={{ width: `${downloadProgress.percentage}%` }}
+                            />
+                        </div>
+                        <p className="text-[9px] text-gray-400 mt-2 truncate">
+                            {downloadProgress.currentImage || `Processing...`}
+                        </p>
+                    </div>
+                )}
 
                 {/* Toolbar */}
                 <div className="flex justify-center gap-4">
@@ -561,12 +699,15 @@ const ClientGallery = () => {
                                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                                     loading="lazy"
                                 />
-                                {/* Overlay that appears on hover (desktop) or always visible on mobile */}
+                                {/* Desktop Overlay */}
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 sm:opacity-0 transition-opacity duration-300 flex flex-col justify-between p-4 sm:p-6">
                                     <div className="flex justify-end">
                                         {isDownloadAllowed && (
                                             <button
-                                                onClick={(e) => handleDownload(e, img.imageUrl, img.originalName)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDownload(e, img);
+                                                }}
                                                 disabled={isDownloading}
                                                 className="p-2 sm:p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-indigo-600 transition-all border border-white/10 shadow-xl active:scale-95 disabled:opacity-50"
                                                 aria-label="Download image"
@@ -583,16 +724,23 @@ const ClientGallery = () => {
                                     </div>
                                 </div>
                                 
-                                {/* Mobile: Always visible download button at bottom right */}
+                                {/* Mobile Download Button */}
                                 {isDownloadAllowed && (
                                     <div className="absolute bottom-2 right-2 sm:hidden">
                                         <button
-                                            onClick={(e) => handleDownload(e, img.imageUrl, img.originalName)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDownload(e, img);
+                                            }}
                                             disabled={isDownloading}
-                                            className="p-2 bg-indigo-600/90 backdrop-blur-md rounded-full text-white active:scale-95 shadow-lg disabled:opacity-50"
+                                            className="p-2.5 bg-indigo-600/95 backdrop-blur-md rounded-full text-white active:scale-95 shadow-lg disabled:opacity-50"
                                             aria-label="Download image"
                                         >
-                                            <FiDownload size={14} />
+                                            {isDownloading ? (
+                                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            ) : (
+                                                <FiDownload size={14} />
+                                            )}
                                         </button>
                                     </div>
                                 )}
@@ -607,15 +755,16 @@ const ClientGallery = () => {
             {/* Slideshow Modal */}
             {showSlideshow && (
                 <SlideshowModal
-                    images={images.map(img => img.imageUrl)}
+                    images={images}
                     galleryName={galleryData?.galleryName}
+                    galleryId={galleryId}
                     onClose={() => setShowSlideshow(false)}
                     initialIndex={slideshowStartIndex}
                     allowDownload={isDownloadAllowed}
                 />
             )}
 
-            {/* VIEWER OVERLAY - Fixed with download button */}
+            {/* Image Viewer Overlay */}
             {selectedImage && (
                 <div className="fixed inset-0 z-[100] bg-black flex flex-col transition-opacity duration-300">
                     <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 bg-black/50 backdrop-blur-md z-10 border-b border-white/5">
@@ -628,15 +777,18 @@ const ClientGallery = () => {
                         </button>
                         
                         <div className="flex items-center gap-2 sm:gap-3">
-                            {/* Download button in viewer overlay */}
                             {isDownloadAllowed && (
                                 <button
-                                    onClick={(e) => handleDownload(e, selectedImage.imageUrl, selectedImage.originalName)}
+                                    onClick={(e) => handleDownload(e, selectedImage)}
                                     disabled={isDownloading}
                                     className="flex items-center gap-1 sm:gap-2 px-3 sm:px-5 py-1.5 sm:py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white transition-all active:scale-95 disabled:opacity-50"
                                     aria-label="Download image"
                                 >
-                                    <FiDownload size={14} className="sm:w-4 sm:h-4" />
+                                    {isDownloading ? (
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                        <FiDownload size={14} className="sm:w-4 sm:h-4" />
+                                    )}
                                     <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider hidden sm:inline">Download</span>
                                 </button>
                             )}
@@ -686,14 +838,17 @@ const ClientGallery = () => {
                             )}
                         </div>
                         <div className="flex items-center gap-4">
-                            {/* Mobile download button in footer */}
                             {isDownloadAllowed && (
                                 <button
-                                    onClick={(e) => handleDownload(e, selectedImage.imageUrl, selectedImage.originalName)}
+                                    onClick={(e) => handleDownload(e, selectedImage)}
                                     disabled={isDownloading}
-                                    className="sm:hidden flex items-center gap-2 px-4 py-2 bg-indigo-600 rounded-lg text-white text-xs font-bold active:scale-95"
+                                    className="sm:hidden flex items-center gap-2 px-4 py-2 bg-indigo-600 rounded-lg text-white text-xs font-bold active:scale-95 disabled:opacity-50"
                                 >
-                                    <FiDownload size={14} />
+                                    {isDownloading ? (
+                                        <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                        <FiDownload size={14} />
+                                    )}
                                     Download
                                 </button>
                             )}
