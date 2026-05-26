@@ -25,8 +25,8 @@ const DeleteModal = ({ isOpen, gallery, onClose, onConfirm, isLoading, getStatus
   const isConfirmValid = confirmText === "DELETE";
   
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+     <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/80 md:backdrop-blur-sm" onClick={onClose}>
+       <div className="isolate transform-gpu will-change-transform backface-hidden bg-[#0a0a0a] border border-white/10 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="sticky top-0 bg-[#0a0a0a] border-b border-white/10 p-6 rounded-t-2xl z-10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -52,8 +52,8 @@ const DeleteModal = ({ isOpen, gallery, onClose, onConfirm, isLoading, getStatus
             </p>
           </div>
 
-          <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4 space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">Gallery Details</h4>
+           <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 space-y-3">
+             <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">Gallery Details</h4>
             <div className="grid grid-cols-2 gap-3">
               <div><p className="text-[9px] uppercase text-gray-600">Gallery Name</p><p className="text-sm text-white font-medium">{gallery.galleryName}</p></div>
               <div><p className="text-[9px] uppercase text-gray-600">Client</p><p className="text-sm text-white">{gallery.name}</p></div>
@@ -64,14 +64,14 @@ const DeleteModal = ({ isOpen, gallery, onClose, onConfirm, isLoading, getStatus
 
           <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4">
             <p className="text-xs text-gray-400 mb-3">Type <span className="text-white font-bold bg-red-500/20 px-2 py-0.5 rounded">DELETE</span> to confirm:</p>
-            <input type="text" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="Type DELETE to confirm" className="w-full bg-black/40 border rounded-xl px-4 py-3 text-sm font-bold uppercase tracking-wider outline-none transition-all border-white/10 text-gray-400" autoFocus />
+            <input type="text" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="Type DELETE to confirm" className="w-full bg-black/40 border rounded-xl px-4 py-3 text-sm font-bold uppercase tracking-wider outline-none transition-colors transition-transform transition-opacity border-white/10 text-gray-400" autoFocus />
           </div>
         </div>
 
         <div className="sticky bottom-0 bg-[#0a0a0a] border-t border-white/10 p-6 rounded-b-2xl">
           <div className="flex gap-3">
             <button onClick={onClose} className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-gray-400 hover:text-white transition-colors text-sm font-medium">Cancel</button>
-            <button onClick={onConfirm} disabled={!isConfirmValid || isLoading} className={`flex-1 px-4 py-3 rounded-xl transition-all text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 ${isConfirmValid && !isLoading ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-red-600/20 text-red-400/50 cursor-not-allowed'}`}>
+            <button onClick={onConfirm} disabled={!isConfirmValid || isLoading} className={`flex-1 px-4 py-3 rounded-xl transition-colors transition-transform transition-opacity text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 ${isConfirmValid && !isLoading ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-red-600/20 text-red-400/50 cursor-not-allowed'}`}>
               {isLoading ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Deleting...</> : <><FiTrash2 size={16} />Delete Permanently</>}
             </button>
           </div>
@@ -94,8 +94,8 @@ const WhatsAppModal = ({ isOpen, gallery, onClose, onSend, isLoading, error: mod
   if (!isOpen || !gallery) return null;
   
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto" onClick={onClose}>
-      <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+     <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/80 md:backdrop-blur-sm" onClick={onClose}>
+       <div className="isolate transform-gpu will-change-transform backface-hidden bg-[#0a0a0a] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between p-6 border-b border-white/10 shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-green-500/10 rounded-full"><FaWhatsapp className="text-green-500" size={20} /></div>
@@ -117,13 +117,13 @@ const WhatsAppModal = ({ isOpen, gallery, onClose, onSend, isLoading, error: mod
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Client's WhatsApp Number *</label>
             <div className="relative">
               <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-2"><FaWhatsapp className="text-green-500" size={16} /><span className="text-gray-600">|</span></div>
-              <input type="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="+233 50 987 6543" className="w-full bg-black/40 border border-white/10 rounded-xl pl-[72px] pr-4 py-3 text-white text-sm focus:border-green-500 outline-none transition-all placeholder:text-gray-600" autoFocus />
+              <input type="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="+233 50 987 6543" className="w-full bg-black/40 border border-white/10 rounded-xl pl-[72px] pr-4 py-3 text-white text-sm focus:border-green-500 outline-none transition-colors transition-transform transition-opacity placeholder:text-gray-600" autoFocus />
             </div>
           </div>
 
           <div>
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Message</label>
-            <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={5} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-green-500 outline-none transition-all resize-none placeholder:text-gray-600" />
+            <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={5} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-green-500 outline-none transition-colors transition-transform transition-opacity resize-none placeholder:text-gray-600" />
             <p className="text-[10px] text-gray-600 mt-1">Gallery link and access key will be included automatically</p>
           </div>
 
@@ -135,7 +135,7 @@ const WhatsAppModal = ({ isOpen, gallery, onClose, onSend, isLoading, error: mod
 
         <div className="border-t border-white/10 p-6 flex gap-3 shrink-0">
           <button onClick={onClose} className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-gray-400 hover:text-white transition-colors text-sm font-medium">Cancel</button>
-          <button onClick={() => onSend(phoneNumber, message)} disabled={isLoading || !phoneNumber} className="flex-[2] px-4 py-3 bg-green-600 hover:bg-green-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-green-600/20">
+          <button onClick={() => onSend(phoneNumber, message)} disabled={isLoading || !phoneNumber} className="flex-[2] px-4 py-3 bg-green-600 hover:bg-green-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors transition-transform transition-opacity shadow-lg shadow-green-600/20">
             {isLoading ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Opening WhatsApp...</> : <><FaWhatsapp size={16} />Share via WhatsApp</>}
           </button>
         </div>
@@ -149,7 +149,7 @@ const ClientTableRow = React.memo(({ client, copyStatus, onCopyLink, onCopyAcces
   <tr className="group hover:bg-white/[0.02] transition-colors">
     <td className="px-6 md:px-8 py-4 md:py-6">
       <div className="flex items-center gap-3 md:gap-4">
-        <img src={client.avatar} alt={client.name} className="w-10 h-10 md:w-12 md:h-12 rounded-xl object-cover ring-1 ring-white/10 group-hover:ring-indigo-500/50 transition-all" />
+        <img src={client.avatar} alt={client.name} className="w-10 h-10 md:w-12 md:h-12 rounded-xl object-cover ring-1 ring-white/10 group-hover:ring-indigo-500/50 transition-colors transition-transform transition-opacity" />
         <div>
           <p className="text-xs md:text-sm font-bold text-white group-hover:text-indigo-400 transition-colors">{client.name}</p>
           <div className="flex items-center gap-2 mt-1"><FiCalendar size={10} className="text-gray-600" /><p className="text-[10px] text-gray-500">Created: {formatDate(client.createdAt)}</p></div>
@@ -173,16 +173,16 @@ const ClientTableRow = React.memo(({ client, copyStatus, onCopyLink, onCopyAcces
     </td>
     <td className="px-6 md:px-8 py-4 md:py-6 text-right">
       <div className="flex justify-end items-center gap-1 md:gap-2">
-        <button onClick={() => onCopyLink(client.link, client.id)} className="p-1.5 md:p-2 rounded-lg bg-white/10 hover:bg-indigo-600/20 text-gray-400 hover:text-indigo-400 transition-all duration-200 active:scale-95" aria-label="Copy gallery link">
+        <button onClick={() => onCopyLink(client.link, client.id)} className="p-1.5 md:p-2 rounded-lg bg-white/10 hover:bg-indigo-600/20 text-gray-400 hover:text-indigo-400 transition-colors transition-transform transition-opacity duration-200 active:scale-95" aria-label="Copy gallery link">
           {copyStatus === client.id ? <FiCheck size={14} className="text-green-400" /> : <FiCopy size={14} />}
         </button>
-        <a href={`${client.link}?accessKey=${client.accessKey}`} target="_blank" rel="noopener noreferrer" className="p-1.5 md:p-2 rounded-lg bg-white/10 hover:bg-indigo-600/20 text-gray-400 hover:text-indigo-400 transition-all duration-200 active:scale-95" aria-label="Open gallery">
+        <a href={`${client.link}?accessKey=${client.accessKey}`} target="_blank" rel="noopener noreferrer" className="p-1.5 md:p-2 rounded-lg bg-white/10 hover:bg-indigo-600/20 text-gray-400 hover:text-indigo-400 transition-colors transition-transform transition-opacity duration-200 active:scale-95" aria-label="Open gallery">
           <FiExternalLink size={14} />
         </a>
-        <button onClick={() => onOpenWhatsApp(client)} className="p-1.5 md:p-2 rounded-lg bg-green-600/20 hover:bg-green-600/40 text-green-400 hover:text-green-300 transition-all duration-200 active:scale-95" aria-label="Share via WhatsApp">
+        <button onClick={() => onOpenWhatsApp(client)} className="p-1.5 md:p-2 rounded-lg bg-green-600/20 hover:bg-green-600/40 text-green-400 hover:text-green-300 transition-colors transition-transform transition-opacity duration-200 active:scale-95" aria-label="Share via WhatsApp">
           <FaWhatsapp size={14} />
         </button>
-        <button onClick={() => onOpenDelete(client)} className="p-1.5 md:p-2 rounded-lg bg-white/10 hover:bg-red-600/20 text-gray-400 hover:text-red-400 transition-all duration-200 active:scale-95" aria-label="Delete gallery">
+        <button onClick={() => onOpenDelete(client)} className="p-1.5 md:p-2 rounded-lg bg-white/10 hover:bg-red-600/20 text-gray-400 hover:text-red-400 transition-colors transition-transform transition-opacity duration-200 active:scale-95" aria-label="Delete gallery">
           <FiTrash2 size={14} />
         </button>
       </div>
@@ -208,16 +208,16 @@ const MobileClientCard = React.memo(({ client, copyStatus, onCopyLink, onOpenWha
       <div className="flex items-center gap-1 text-gray-500"><FiKey size={12} /> <code className="text-indigo-400 font-mono text-[10px]">{client.accessKey}</code></div>
     </div>
     <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/5">
-      <button onClick={() => onCopyLink(client.link, client.id)} className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-white/5 rounded-lg text-gray-400 hover:text-indigo-400 transition-all active:scale-95">
+      <button onClick={() => onCopyLink(client.link, client.id)} className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-white/5 rounded-lg text-gray-400 hover:text-indigo-400 transition-colors transition-transform transition-opacity active:scale-95">
         {copyStatus === client.id ? <FiCheck size={14} className="text-green-400" /> : <FiCopy size={14} />}<span className="text-xs">Link</span>
       </button>
-      <a href={`${client.link}?accessKey=${client.accessKey}`} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-white/5 rounded-lg text-gray-400 hover:text-indigo-400 transition-all active:scale-95">
+      <a href={`${client.link}?accessKey=${client.accessKey}`} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-white/5 rounded-lg text-gray-400 hover:text-indigo-400 transition-colors transition-transform transition-opacity active:scale-95">
         <FiExternalLink size={14} /><span className="text-xs">View</span>
       </a>
-      <button onClick={() => onOpenWhatsApp(client)} className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-green-600/20 rounded-lg text-green-400 hover:bg-green-600/40 transition-all active:scale-95">
+      <button onClick={() => onOpenWhatsApp(client)} className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-green-600/20 rounded-lg text-green-400 hover:bg-green-600/40 transition-colors transition-transform transition-opacity active:scale-95">
         <FaWhatsapp size={14} /><span className="text-xs">Share</span>
       </button>
-      <button onClick={() => onOpenDelete(client)} className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-white/5 rounded-lg text-gray-400 hover:text-red-400 transition-all active:scale-95">
+      <button onClick={() => onOpenDelete(client)} className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-white/5 rounded-lg text-gray-400 hover:text-red-400 transition-colors transition-transform transition-opacity active:scale-95">
         <FiTrash2 size={14} /><span className="text-xs">Delete</span>
       </button>
     </div>
@@ -227,17 +227,17 @@ const MobileClientCard = React.memo(({ client, copyStatus, onCopyLink, onOpenWha
 // Stats Card Component
 const StatsCard = ({ icon: Icon, title, value, subtitle, subtitleColor = "text-green-500", storagePercentage }) => {
   if (storagePercentage !== undefined) {
-    return (
-      <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 hover:border-indigo-500/20 transition-all">
-        <div className="flex items-center gap-3 mb-2"><Icon className="text-indigo-400" size={20} /><p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">{title}</p></div>
-        <div className="mt-2"><h3 className="text-4xl font-bold text-white">{value} <span className="text-lg text-gray-500">GB</span></h3>
-          <div className="w-full bg-white/5 h-1.5 rounded-full mt-3 overflow-hidden"><div className="bg-indigo-500 h-full transition-all duration-500" style={{ width: `${Math.min(storagePercentage, 100)}%` }} /></div>
-        </div>
+  return (
+    <div className="isolate transform-gpu will-change-transform bg-white/[0.02] border border-white/5 rounded-2xl p-6 hover:border-indigo-500/20 transition-colors transition-transform transition-opacity">
+      <div className="flex items-center gap-3 mb-2"><Icon className="text-indigo-400" size={20} /><p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">{title}</p></div>
+      <div className="mt-2"><h3 className="text-4xl font-bold text-white">{value} <span className="text-lg text-gray-500">GB</span></h3>
+        <div className="w-full bg-white/5 h-1.5 rounded-full mt-3 overflow-hidden"><div className="bg-indigo-500 h-full transition-colors transition-transform transition-opacity duration-500" style={{ width: `${Math.min(storagePercentage, 100)}%` }} /></div>
       </div>
-    );
+    </div>
+  );
   }
   return (
-    <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 hover:border-indigo-500/20 transition-all">
+    <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 hover:border-indigo-500/20 transition-colors transition-transform transition-opacity">
       <div className="flex items-center gap-3 mb-2"><Icon className="text-indigo-400" size={20} /><p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">{title}</p></div>
       <div className="flex items-baseline gap-4 mt-2"><h3 className="text-4xl font-bold text-white">{value}</h3><span className={`${subtitleColor} text-xs font-bold`}>{subtitle}</span></div>
     </div>
@@ -265,11 +265,40 @@ const Clients = () => {
   // Debounced search
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
 
+  // Debounced search
   useEffect(() => {
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     searchTimeoutRef.current = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
     return () => { if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current); };
   }, [searchTerm]);
+
+  // Global styles for hardware acceleration and overflow fixes
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.innerHTML = `
+      /* Force hardware acceleration */
+      .transform-gpu {
+        transform: translateZ(0);
+      }
+      .will-change-transform {
+        will-change: transform;
+      }
+      .backface-hidden {
+        backface-visibility: hidden;
+      }
+      /* Fix Safari/Android PWA scroll bug */
+      html,
+      body,
+      #root {
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
 
   useEffect(() => { fetchStats(); }, []);
   useEffect(() => { loadClients(); }, [currentPage]);
@@ -407,7 +436,7 @@ const Clients = () => {
     <div className="min-h-screen bg-[#050505] flex">
       <SkipLink />
       <Sidebar isMobileMenuOpen={mobileMenu.isOpen} closeMobileMenu={mobileMenu.close} />
-      <main id="main-content" className={`flex-1 flex flex-col transition-all duration-300 ${mobileMenu.isOpen ? 'ml-0' : ''} lg:ml-64 overflow-x-hidden`} tabIndex={-1}>
+      <main id="main-content" className={`flex-1 flex flex-col ${mobileMenu.isOpen ? 'ml-0' : ''} lg:ml-64 overflow-x-hidden`} tabIndex={-1}>
         <DashboardNavbar onMenuToggle={mobileMenu.toggle} isMobileMenuOpen={mobileMenu.isOpen} />
         <div className="flex-1 p-4 md:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-4 md:space-y-6 lg:space-y-8 pb-safe">
           
@@ -423,13 +452,13 @@ const Clients = () => {
           <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
             <div className="relative w-full sm:w-96">
               <FiSearch className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 text-gray-500" />
-              <input type="text" placeholder="Search by name, email, or gallery..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-white/[0.02] border border-white/5 rounded-xl py-3 pl-10 pr-4 text-sm text-gray-300 outline-none focus:border-indigo-500/50 transition-all" aria-label="Search clients" />
+              <input type="text" placeholder="Search by name, email, or gallery..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-white/[0.02] border border-white/5 rounded-xl py-3 pl-10 pr-4 text-sm text-gray-300 outline-none focus:border-indigo-500/50 transition-colors transition-transform transition-opacity" aria-label="Search clients" />
             </div>
             <div className="flex gap-2 w-full sm:w-auto">
-              <button onClick={() => { loadClients(); fetchStats(); }} disabled={isLoading} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/10 text-gray-300 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95" aria-label="Refresh">
+              <button onClick={() => { loadClients(); fetchStats(); }} disabled={isLoading} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/10 text-gray-300 rounded-xl text-xs font-bold uppercase tracking-widest transition-colors transition-transform transition-opacity active:scale-95" aria-label="Refresh">
                 <FiRefreshCw size={14} className={isLoading ? "animate-spin" : ""} /><span className="hidden sm:inline">Refresh</span>
               </button>
-              <button onClick={() => window.location.href = '/gallery'} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 md:px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg active:scale-95" aria-label="Create new client">
+              <button onClick={() => window.location.href = '/gallery'} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 md:px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-colors transition-transform transition-opacity shadow-lg active:scale-95" aria-label="Create new client">
                 <FiUserPlus size={16} /><span className="hidden sm:inline">Create New Client</span>
               </button>
             </div>
@@ -444,8 +473,8 @@ const Clients = () => {
             </div>
           )}
 
-          {/* Client Table/List */}
-          <div className="bg-white/[0.02] border border-white/5 rounded-2xl overflow-x-auto">
+           {/* Client Table/List */}
+          <div className="bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden">
             {isLoading ? (
               <div className="text-center py-20" role="status">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
@@ -455,7 +484,7 @@ const Clients = () => {
               <div className="text-center py-20">
                 <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-white/5 flex items-center justify-center"><FiUsers size={32} className="text-gray-600" /></div>
                 <p className="text-gray-500 text-sm">No galleries found</p>
-                <button onClick={() => window.location.href = '/dashboard'} className="mt-4 px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold uppercase tracking-widest transition-all active:scale-95">Go to Gallery</button>
+                <button onClick={() => window.location.href = '/dashboard'} className="mt-4 px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold uppercase tracking-widest transition-colors transition-transform transition-opacity active:scale-95">Go to Gallery</button>
               </div>
             ) : (
               <>
@@ -477,7 +506,7 @@ const Clients = () => {
             {pagination.totalPages > 1 && (
               <div className="p-4 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-3 bg-black/20">
                 <p className="text-xs text-gray-600 font-bold uppercase tracking-widest">Showing {filteredClients.length} of {pagination.totalItems} galleries</p>
-                <div className="flex gap-2"><button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={!pagination.hasPrevPage} className="px-4 py-2 rounded-lg bg-white/5 text-gray-300 text-sm border border-white/10 hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95">Previous</button><span className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm">{pagination.currentPage} / {pagination.totalPages}</span><button onClick={() => setCurrentPage(prev => Math.min(pagination.totalPages, prev + 1))} disabled={!pagination.hasNextPage} className="px-4 py-2 rounded-lg bg-white/5 text-gray-300 text-sm border border-white/10 hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95">Next</button></div>
+                <div className="flex gap-2"><button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={!pagination.hasPrevPage} className="px-4 py-2 rounded-lg bg-white/5 text-gray-300 text-sm border border-white/10 hover:bg-white/10 transition-colors transition-transform transition-opacity disabled:opacity-50 disabled:cursor-not-allowed active:scale-95">Previous</button><span className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm">{pagination.currentPage} / {pagination.totalPages}</span><button onClick={() => setCurrentPage(prev => Math.min(pagination.totalPages, prev + 1))} disabled={!pagination.hasNextPage} className="px-4 py-2 rounded-lg bg-white/5 text-gray-300 text-sm border border-white/10 hover:bg-white/10 transition-colors transition-transform transition-opacity disabled:opacity-50 disabled:cursor-not-allowed active:scale-95">Next</button></div>
               </div>
             )}
           </div>
