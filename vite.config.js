@@ -20,14 +20,4 @@ export default defineConfig({
       },
     },
   }
-  // server: {
-  //   proxy: {
-  //     // When you call '/api/V1/...', Vite forwards it to Render
-  //     '/api': {
-  //       target: 'https://kofilarte-studios-backend.onrender.com',
-  //       changeOrigin: true,
-  //       secure: false, 
-  //     }
-  //   }
-  // }
-});
+})
