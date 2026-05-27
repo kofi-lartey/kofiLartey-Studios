@@ -27,7 +27,6 @@ const Gallery = () => {
   const [generatedShareLink, setGeneratedShareLink] = useState("");
   const [showLinkCard, setShowLinkCard] = useState(false);
   const [allGalleries, setAllGalleries] = useState([]);
-  const [galleryPreviewImages, setGalleryPreviewImages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [creatingLink, setCreatingLink] = useState(false);
   const [existingConfiguration, setExistingConfiguration] = useState(null);
@@ -71,149 +70,7 @@ const Gallery = () => {
     }
   };
 
-  // Check if gallery already has configuration - FIXED with proper error handling
-  const checkExistingConfiguration = async (galleryID) => {
-    if (!galleryID) {
-      console.warn('No gallery ID provided');
-      return false;
-    }
-    
-    setCheckingConfig(true);
-    setError(null);
-    
-    try {
-      console.log(`🔍 Fetching config for gallery: ${galleryID}`);
-      
-      const response = await get(`/gallery/main/${galleryID}/config`);
-      
-      console.log('📦 Config response:', response);
-      
-      // Check if response is valid and has data
-      if (response && response.success === true && response.data) {
-        const config = response.data;
-        
-        console.log('✅ Config found:', config);
-        
-        // Extract URL from various possible field names
-        let shareUrl = config.galleryURL || 
-                       config.shareLink || 
-                       config.url || 
-                       config.publicUrl ||
-                       config.galleryUrl;
-        
-        // If URL is relative, make it absolute
-        if (shareUrl && !shareUrl.startsWith('http')) {
-          shareUrl = `${window.location.origin}${shareUrl}`;
-        }
-        
-        const accessKeyValue = config.accessKey || config.key;
-        
-        if (!shareUrl || !accessKeyValue) {
-          console.warn('⚠️ Config missing URL or Access Key');
-          setShowLinkCard(false);
-          setExistingConfiguration(null);
-          return false;
-        }
-        
-        // Update state with existing configuration
-        setGeneratedShareLink(shareUrl);
-        setAccessKey(accessKeyValue);
-        setExistingConfiguration(config);
-        setShowLinkCard(true);
-        
-        // Pre-fill form fields with existing data
-        if (config.clientInfo) {
-          setUserName(config.clientInfo.name || config.clientInfo.clientName || "");
-          setUserEmail(config.clientInfo.email || "");
-        }
-        
-        if (config.downloadPermission !== undefined) {
-          setDownloadPermissions(config.downloadPermission);
-        }
-        
-        if (config.expirationPeriod) {
-          setExpiration(config.expirationPeriod);
-        }
-        
-        showToastMessage("Existing configuration loaded successfully!", "success");
-        return true;
-      } 
-      
-      // Handle case where config doesn't exist
-      if (response && response.status === 404) {
-        console.log('📭 No configuration found');
-        setShowLinkCard(false);
-        setExistingConfiguration(null);
-        setGeneratedShareLink("");
-        setAccessKey("");
-        return false;
-      }
-      
-      // Handle other response formats
-      if (response && response.data === null) {
-        console.log('📭 No configuration data');
-        setShowLinkCard(false);
-        setExistingConfiguration(null);
-        return false;
-      }
-      
-      return false;
-      
-    } catch (error) {
-      console.error('❌ Error checking configuration:', error);
-      
-      // Handle 404 as "no config found" (this is normal)
-      if (error.response?.status === 404) {
-        console.log('📭 Configuration not found (404) - This is normal for new galleries');
-        setShowLinkCard(false);
-        setExistingConfiguration(null);
-        setGeneratedShareLink("");
-        setAccessKey("");
-        return false;
-      }
-      
-      // For other errors, show message but don't break the UI
-      if (error.response?.status === 401 || error.response?.status === 403) {
-        setError('Authentication failed. Please log in again.');
-      } else if (error.response?.status === 500) {
-        setError('Server error. Please try again later.');
-      } else {
-        setError(error.message || 'Failed to load configuration');
-      }
-      
-      setShowLinkCard(false);
-      setExistingConfiguration(null);
-      return false;
-    } finally {
-      setCheckingConfig(false);
-    }
-  };
-
-  // Fetch gallery images for preview
-  const fetchGalleryImages = async (galleryID) => {
-    try {
-      const response = await get(`/gallery/${galleryID}/images`);
-      console.log('📸 Gallery images fetched:', response);
-
-      if (response && response.success && response.data) {
-        const imagesData = response.data || [];
-        const formattedImages = imagesData.map(img => ({
-          id: img.imageId || img._id,
-          url: img.imageUrl,
-          name: img.imageName || img.originalName || 'Untitled',
-          size: img.size || 0,
-          uploadedAt: img.uploadedAt || new Date()
-        }));
-        setGalleryPreviewImages(formattedImages.slice(0, 6));
-      } else {
-        setGalleryPreviewImages([]);
-      }
-    } catch (error) {
-      console.error('Error fetching gallery images:', error);
-      setGalleryPreviewImages([]);
-    }
-  };
-
+  // ADDED: Handle search function
   const handleSearch = () => {
     if (!galleryNameSearch && !searchTerm) {
       showToastMessage("Please select a gallery or enter search term", "error");
@@ -234,20 +91,127 @@ const Gallery = () => {
     }
   };
 
+  // Check if gallery already has configuration
+  const checkExistingConfiguration = async (galleryID) => {
+    if (!galleryID) {
+      console.warn('No gallery ID provided');
+      return false;
+    }
+    
+    setCheckingConfig(true);
+    setError(null);
+    
+    try {
+      console.log(`🔍 Fetching config for gallery: ${galleryID}`);
+      
+      const response = await get(`/gallery/main/${galleryID}/config`);
+      
+      console.log('📦 Config response:', response);
+      
+      if (response && response.success === true && response.data) {
+        const config = response.data;
+        
+        console.log('✅ Config found:', config);
+        
+        let shareUrl = config.galleryURL || 
+                       config.shareLink || 
+                       config.url || 
+                       config.publicUrl ||
+                       config.galleryUrl;
+        
+        if (shareUrl && !shareUrl.startsWith('http')) {
+          shareUrl = `${window.location.origin}${shareUrl}`;
+        }
+        
+        const accessKeyValue = config.accessKey || config.key;
+        
+        if (!shareUrl || !accessKeyValue) {
+          console.warn('⚠️ Config missing URL or Access Key');
+          setShowLinkCard(false);
+          setExistingConfiguration(null);
+          return false;
+        }
+        
+        setGeneratedShareLink(shareUrl);
+        setAccessKey(accessKeyValue);
+        setExistingConfiguration(config);
+        setShowLinkCard(true);
+        
+        if (config.clientInfo) {
+          setUserName(config.clientInfo.name || config.clientInfo.clientName || "");
+          setUserEmail(config.clientInfo.email || "");
+        }
+        
+        if (config.downloadPermission !== undefined) {
+          setDownloadPermissions(config.downloadPermission);
+        }
+        
+        if (config.expirationPeriod) {
+          setExpiration(config.expirationPeriod);
+        }
+        
+        showToastMessage("Existing configuration loaded successfully!", "success");
+        return true;
+      } 
+      
+      if (response && response.status === 404) {
+        console.log('📭 No configuration found');
+        setShowLinkCard(false);
+        setExistingConfiguration(null);
+        setGeneratedShareLink("");
+        setAccessKey("");
+        return false;
+      }
+      
+      if (response && response.data === null) {
+        console.log('📭 No configuration data');
+        setShowLinkCard(false);
+        setExistingConfiguration(null);
+        return false;
+      }
+      
+      return false;
+      
+    } catch (error) {
+      console.error('❌ Error checking configuration:', error);
+      
+      if (error.response?.status === 404) {
+        console.log('📭 Configuration not found (404) - This is normal for new galleries');
+        setShowLinkCard(false);
+        setExistingConfiguration(null);
+        setGeneratedShareLink("");
+        setAccessKey("");
+        return false;
+      }
+      
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        setError('Authentication failed. Please log in again.');
+      } else if (error.response?.status === 500) {
+        setError('Server error. Please try again later.');
+      } else {
+        setError(error.message || 'Failed to load configuration');
+      }
+      
+      setShowLinkCard(false);
+      setExistingConfiguration(null);
+      return false;
+    } finally {
+      setCheckingConfig(false);
+    }
+  };
+
   const selectGallery = async (gallery) => {
     console.log('🎯 Selecting gallery:', gallery);
     
     setSelectedGallery(gallery);
     setRefreshUploads(prev => prev + 1);
     
-    // Reset configuration state for new gallery
     setExistingConfiguration(null);
     setShowLinkCard(false);
     setGeneratedShareLink("");
     setAccessKey("");
     setError(null);
     
-    // Reset form fields if no existing config expected
     if (!gallery.hasConfiguration) {
       setUserName("");
       setUserEmail("");
@@ -255,10 +219,6 @@ const Gallery = () => {
       setDownloadPermissions(false);
     }
     
-    // Fetch images for preview
-    await fetchGalleryImages(gallery.galleryID);
-    
-    // Check if gallery already has configuration
     if (gallery.hasConfiguration) {
       await checkExistingConfiguration(gallery.galleryID);
     }
@@ -308,7 +268,6 @@ const Gallery = () => {
       if (response && response.success && response.data) {
         const galleryData = response.data;
         
-        // Extract URL from response
         let shareUrl = galleryData.galleryURL || 
                        galleryData.shareLink || 
                        galleryData.url;
@@ -328,7 +287,6 @@ const Gallery = () => {
         
         showToastMessage("Gallery share link created successfully!", "success");
         
-        // Update the gallery's hasConfiguration flag
         setAllGalleries(prev => prev.map(g => 
           g.id === selectedGallery.id ? { ...g, hasConfiguration: true } : g
         ));
@@ -338,7 +296,6 @@ const Gallery = () => {
     } catch (error) {
       console.error('Error creating gallery share:', error);
       
-      // Check if error is because configuration already exists
       if (error.response?.data?.message?.includes('already exists') || 
           error.response?.status === 409) {
         showToastMessage("This gallery already has a configuration. Loading existing share link...", "info");
@@ -467,7 +424,6 @@ const Gallery = () => {
                 : 'bg-gradient-to-r from-indigo-600/10 to-purple-600/10 border border-indigo-500/30'
             }`}>
               <div className="flex flex-col gap-4 min-w-0">
-                {/* Header */}
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center">
                     <FiLink className="text-indigo-400" size={14} />
@@ -484,7 +440,6 @@ const Gallery = () => {
                   </div>
                 </div>
 
-                {/* Gallery URL */}
                 <div className="space-y-2">
                   <label className="text-[10px] text-gray-500 uppercase tracking-wider">Gallery URL</label>
                   <div className="bg-black/40 border border-white/10 rounded-xl p-3">
@@ -512,7 +467,6 @@ const Gallery = () => {
                   </div>
                 </div>
 
-                {/* Access Key */}
                 <div className="space-y-2">
                   <label className="text-[10px] text-gray-500 uppercase tracking-wider flex items-center gap-1">
                     <FiKey size={10} /> Access Key
@@ -533,7 +487,6 @@ const Gallery = () => {
                   </div>
                 </div>
 
-                {/* Existing Config Info */}
                 {existingConfiguration && existingConfiguration.clientInfo && (
                   <div className="mt-2 pt-3 border-t border-white/10">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -559,7 +512,6 @@ const Gallery = () => {
                   </div>
                 )}
 
-                {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row gap-3 mt-2">
                   <button
                     onClick={() => handleCopy(generatedShareLink, 'link')}
@@ -591,7 +543,6 @@ const Gallery = () => {
               </div>
 
               <div className="space-y-5">
-                {/* Link Expiration */}
                 <div>
                   <label className="text-[10px] uppercase text-gray-500 font-bold tracking-wider mb-2 block">
                     <FiClock className="inline mr-1" size={10} /> Link Expiration
@@ -612,7 +563,6 @@ const Gallery = () => {
                   </select>
                 </div>
 
-                {/* Download Permissions Toggle */}
                 <div className="flex items-center justify-between py-2 group">
                   <div>
                     <p className="text-sm font-medium text-gray-200 flex items-center gap-2">
@@ -633,7 +583,6 @@ const Gallery = () => {
                   </button>
                 </div>
 
-                {/* Info Box */}
                 <div className="pt-2">
                   <div className="bg-gradient-to-r from-amber-500/5 to-orange-500/5 border border-amber-500/15 rounded-xl p-3">
                     <div className="flex items-start gap-2">
@@ -697,7 +646,6 @@ const Gallery = () => {
                       </div>
                     </div>
 
-                    {/* Galleries List */}
                     {allGalleries.length > 0 && (
                       <div className="mt-4">
                         <label className="text-[10px] uppercase text-gray-500 font-bold tracking-wider mb-2 block">
@@ -730,7 +678,6 @@ const Gallery = () => {
                       </div>
                     )}
 
-                    {/* Selected Gallery Indicator */}
                     {selectedGallery && (
                       <div className="mt-4 p-3 bg-indigo-600/10 border border-indigo-500/20 rounded-xl">
                         <p className="text-[10px] text-indigo-400 font-bold">✓ Gallery Selected</p>
@@ -823,7 +770,6 @@ const Gallery = () => {
                 </div>
               </div>
 
-              {/* Status Bar */}
               <div className="mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-white/10 pt-5">
                 <div className="flex items-center gap-2">
                   <div className="relative">
@@ -846,7 +792,7 @@ const Gallery = () => {
             </div>
           </div>
 
-          {/* Recent Uploads Section */}
+          {/* Recent Uploads Section - This shows all images */}
           {selectedGallery && (
             <div className="mt-6 lg:mt-8">
               <RecentUploads
@@ -856,64 +802,7 @@ const Gallery = () => {
               />
             </div>
           )}
-
-          {/* Gallery Preview Section */}
-          <section className="pt-4 lg:pt-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 mb-4 lg:mb-8 border-b border-white/5 pb-4">
-              <div>
-                <h3 className="text-xl lg:text-2xl font-bold text-white">
-                  {selectedGallery ? `${selectedGallery.name} Preview` : "Gallery Preview"}
-                </h3>
-                <p className="text-gray-500 text-xs sm:text-sm mt-1">
-                  {selectedGallery ? `${galleryPreviewImages.length} images in this gallery` : "Select a gallery to preview images."}
-                </p>
-              </div>
-              <div className="flex gap-3 text-gray-500">
-                <FiGrid className="cursor-pointer hover:text-white transition-colors" />
-                <FiColumns className="cursor-pointer text-white transition-colors" />
-              </div>
-            </div>
-
-            {selectedGallery && galleryPreviewImages.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-6">
-                {galleryPreviewImages.map((img, index) => (
-                  <div key={img.id || index} className="group relative aspect-[4/5] rounded-xl lg:rounded-2xl overflow-hidden border border-white/5 bg-white/5">
-                    <img
-                      src={img.url}
-                      alt={img.name}
-                      className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 group-hover:scale-105"
-                      loading="lazy"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-3 lg:p-4 flex flex-col justify-end">
-                      <p className="text-xs font-bold text-white truncate">{img.name}</p>
-                      <p className="text-[9px] lg:text-[10px] text-gray-400 mt-1">
-                        {(img.size / 1024 / 1024).toFixed(1)} MB
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-20 border border-white/5 rounded-3xl bg-white/[0.01]">
-                {selectedGallery ? (
-                  <>
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/5 flex items-center justify-center">
-                      <FiImage size={24} className="text-gray-600" />
-                    </div>
-                    <p className="text-gray-500 text-sm">No images uploaded to this gallery yet.</p>
-                    <p className="text-gray-600 text-xs mt-2">Upload images from the dashboard to see them here.</p>
-                  </>
-                ) : (
-                  <>
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/5 flex items-center justify-center">
-                      <FiGrid size={24} className="text-gray-600" />
-                    </div>
-                    <p className="text-gray-500 text-sm">Select a gallery from the list to preview images.</p>
-                  </>
-                )}
-              </div>
-            )}
-          </section>
+          
         </div>
 
         <Footer />

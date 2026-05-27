@@ -458,7 +458,7 @@ const Clients = () => {
               <button onClick={() => { loadClients(); fetchStats(); }} disabled={isLoading} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/10 text-gray-300 rounded-xl text-xs font-bold uppercase tracking-widest transition-colors transition-transform transition-opacity active:scale-95" aria-label="Refresh">
                 <FiRefreshCw size={14} className={isLoading ? "animate-spin" : ""} /><span className="hidden sm:inline">Refresh</span>
               </button>
-              <button onClick={() => window.location.href = '/gallery'} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 md:px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-colors transition-transform transition-opacity shadow-lg active:scale-95" aria-label="Create new client">
+               <button onClick={() => window.location.href = '/gallery'} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 md:px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-colors transition-transform transition-opacity shadow-lg active:scale-95" aria-label="Create new client">
                 <FiUserPlus size={16} /><span className="hidden sm:inline">Create New Client</span>
               </button>
             </div>

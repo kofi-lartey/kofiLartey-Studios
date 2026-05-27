@@ -53,9 +53,11 @@ const downloadImageFromServer = async (galleryId, imageId, filename) => {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
-        // Clean up
-        window.URL.revokeObjectURL(blobUrl);
+
+        // Delay cleanup for mobile browsers
+        setTimeout(() => {
+            window.URL.revokeObjectURL(blobUrl);
+        }, 1000);
         
         return true;
     } catch (error) {
@@ -113,21 +115,23 @@ const downloadAllAsZip = async (galleryId, galleryName, onProgress) => {
             total: 100,
             percentage: 80,
             currentImage: 'Preparing download...'
-        });
-        
+});
+
         // Create download link
         const blobUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = blobUrl;
         link.download = filename;
-        
+
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
-        // Clean up
-        window.URL.revokeObjectURL(blobUrl);
-        
+
+        // Delay cleanup for mobile browsers
+        setTimeout(() => {
+            window.URL.revokeObjectURL(blobUrl);
+        }, 1000);
+
         onProgress?.({
             current: 100,
             total: 100,
