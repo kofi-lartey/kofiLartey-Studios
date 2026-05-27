@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
     FiDownload,
     FiMaximize2,
@@ -20,20 +20,16 @@ import NavBar from "../componets/NavBar";
 import Footer from "../componets/Footer";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Loader from "../components/Loader";
-import { post, get } from "../utils/apiCall";
+import { post } from "../utils/apiCall";
 
 // Helper function to download single image using server API
-const downloadImageFromServer = async (galleryId, imageId, filename) => {
+export const downloadImageFromServer = async (galleryId, imageId, filename = "image.jpg") => {
     try {
-        // Use server endpoint for secure download
         const response = await fetch(
             `${process.env.REACT_APP_API_URL}/gallery/${galleryId}/public-download/${imageId}`,
             {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'include'
+                method: "GET",
+                credentials: "include",
             }
         );
 
@@ -41,50 +37,52 @@ const downloadImageFromServer = async (galleryId, imageId, filename) => {
             throw new Error(`Download failed: ${response.statusText}`);
         }
 
-        // Get the blob from response
         const blob = await response.blob();
-        
-        // Create download link
+
+        // FORCE extension (VERY IMPORTANT for iOS)
+        const safeName = filename.includes(".")
+            ? filename
+            : `${filename}.jpg`;
+
         const blobUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
+
+        const link = document.createElement("a");
         link.href = blobUrl;
-        link.download = filename || 'image.jpg';
-        
+        link.download = safeName;
+
+        // REQUIRED for iOS PWA reliability
+        link.setAttribute("target", "_blank");
+        link.setAttribute("rel", "noopener");
+
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
 
-        // Delay cleanup for mobile browsers
+        // ⚡ IMPORTANT: delayed cleanup (iOS/Android fix)
         setTimeout(() => {
             window.URL.revokeObjectURL(blobUrl);
-        }, 1000);
-        
+        }, 8000);
+
         return true;
     } catch (error) {
-        console.error('Download error:', error);
+        console.error("Download error:", error);
         throw error;
     }
 };
 
 // Helper to download all images as ZIP using server API
-const downloadAllAsZip = async (galleryId, galleryName, onProgress) => {
+export const downloadAllAsZip = async (galleryId, galleryName, onProgress) => {
     try {
         onProgress?.({
-            current: 0,
-            total: 100,
             percentage: 10,
-            currentImage: 'Preparing download...'
+            currentImage: "Preparing download..."
         });
 
-        // Use server endpoint for ZIP download
         const response = await fetch(
             `${process.env.REACT_APP_API_URL}/gallery/${galleryId}/public-download-all`,
             {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'include'
+                method: "GET",
+                credentials: "include",
             }
         );
 
@@ -93,55 +91,50 @@ const downloadAllAsZip = async (galleryId, galleryName, onProgress) => {
         }
 
         onProgress?.({
-            current: 50,
-            total: 100,
             percentage: 50,
-            currentImage: 'Creating ZIP file...'
+            currentImage: "Creating ZIP file..."
         });
 
-        // Get the ZIP blob from response
         const blob = await response.blob();
-        
-        // Get filename from Content-Disposition header or use default
-        const contentDisposition = response.headers.get('Content-Disposition');
-        let filename = `${galleryName || 'gallery'}_gallery.zip`;
+
+        let filename = `${galleryName || "gallery"}_gallery.zip`;
+
+        const contentDisposition = response.headers.get("Content-Disposition");
         if (contentDisposition) {
             const match = contentDisposition.match(/filename="(.+)"/);
             if (match) filename = match[1];
         }
-        
-        onProgress?.({
-            current: 80,
-            total: 100,
-            percentage: 80,
-            currentImage: 'Preparing download...'
-});
 
-        // Create download link
+        // FORCE .zip extension (iOS fix)
+        if (!filename.endsWith(".zip")) {
+            filename += ".zip";
+        }
+
         const blobUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
+
+        const link = document.createElement("a");
         link.href = blobUrl;
         link.download = filename;
+
+        link.setAttribute("target", "_blank");
 
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
 
-        // Delay cleanup for mobile browsers
+        // ⚡ longer delay for large ZIPs
         setTimeout(() => {
             window.URL.revokeObjectURL(blobUrl);
-        }, 1000);
+        }, 10000);
 
         onProgress?.({
-            current: 100,
-            total: 100,
             percentage: 100,
-            currentImage: 'Complete!'
+            currentImage: "Complete!"
         });
-        
+
         return true;
     } catch (error) {
-        console.error('ZIP download error:', error);
+        console.error("ZIP download error:", error);
         throw error;
     }
 };

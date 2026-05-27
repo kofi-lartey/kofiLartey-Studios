@@ -14,6 +14,22 @@ if ('serviceWorker' in navigator) {
         console.log('SW registration failed: ', registrationError)
       })
   })
+
+  // EXTRA RELIABILITY FIX (HIGHLY RECOMMENDED)
+  // Add this once in your app (helps PWA downloads)
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    if (event.data?.type === "DOWNLOAD_BLOB") {
+      const { blob, filename } = event.data;
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+
+      setTimeout(() => URL.revokeObjectURL(url), 8000);
+    }
+  });
 }
 
 createRoot(document.getElementById('root')).render(
