@@ -33,10 +33,8 @@ const isDevEnvironment = () => {
 
 // URL constructor that prevents duplicate API prefixes
 const getApiUrl = (path) => {
-    // Ensure path starts with /
     let cleanPath = path.startsWith('/') ? path : `/${path}`;
 
-    // Remove any API prefix that might cause duplication
     const apiPrefixes = ['/api/V1/', '/api/v1/', '/api/', '/V1/', '/v1/'];
     for (const prefix of apiPrefixes) {
         if (cleanPath.startsWith(prefix)) {
@@ -45,7 +43,6 @@ const getApiUrl = (path) => {
         }
     }
 
-    // Ensure path starts with slash
     if (!cleanPath.startsWith('/')) {
         cleanPath = '/' + cleanPath;
     }
@@ -77,50 +74,6 @@ const isIOS = () => {
     return /iPad|iPhone|iPod/.test(navigator.userAgent);
 };
 
-export const downloadImageFromServer = async (galleryID, imageId, filename = "image.jpg") => {
-    const safeName = filename.includes(".") ? filename : `${filename}.jpg`;
-
-    if (!galleryID || !imageId) {
-        throw new Error("Missing gallery ID or image ID");
-    }
-
-    const downloadUrl = getApiUrl(`/gallery/${galleryID}/public-download/${imageId}`);
-    const cacheBusterUrl = `${downloadUrl}${downloadUrl.includes('?') ? '&' : '?'}_=${Date.now()}`;
-
-    const response = await fetch(cacheBusterUrl, {
-        method: "GET",
-        credentials: isDevEnvironment() ? "omit" : "include"
-    });
-
-    if (!response.ok) {
-        let errorMessage = `Download failed (${response.status})`;
-        try {
-            const errorData = await response.json();
-            errorMessage = errorData.message || errorMessage;
-        } catch (e) {
-            const errorText = await response.text().catch(() => '');
-            errorMessage = `${errorMessage}: ${errorText.slice(0, 100)}`;
-        }
-        throw new Error(errorMessage);
-    }
-
-    const blob = await response.blob();
-    if (blob.size < 100) {
-        throw new Error(`Invalid data (${blob.size} bytes)`);
-    }
-
-    const blobUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = blobUrl;
-    link.download = safeName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(blobUrl);
-
-    return true;
-};
-
 const useImagePreloader = (images) => {
     const cacheRef = useRef(new Map());
 
@@ -143,12 +96,11 @@ const useImagePreloader = (images) => {
     return { getCached };
 };
 
-// Slideshow Modal Component
-const SlideshowModal = ({ images, galleryName, galleryID, onClose, initialIndex = 0, allowDownload = false, onDownload }) => {
+// Slideshow Modal Component - WITHOUT download button
+const SlideshowModal = ({ images, galleryName, onClose, initialIndex = 0 }) => {
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
     const [isPlaying, setIsPlaying] = useState(true);
     const [showControls, setShowControls] = useState(true);
-    const [downloading, setDownloading] = useState(false);
     const touchStartX = useRef(0);
     const touchEndX = useRef(0);
     const controlsTimeout = useRef(null);
@@ -171,26 +123,15 @@ const SlideshowModal = ({ images, galleryName, galleryID, onClose, initialIndex 
         return () => clearInterval(interval);
     }, [isPlaying, images.length]);
 
-    const handleDownloadCurrent = async () => {
-        if (!allowDownload || !galleryID || !onDownload) return;
-        setDownloading(true);
-        const currentImage = images[currentIndex];
-        if (currentImage) {
-            await onDownload(currentImage);
-        }
-        setDownloading(false);
-    };
-
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.key === 'ArrowLeft') handlePrevious();
             if (e.key === 'ArrowRight') handleNext();
             if (e.key === 'Escape') onClose();
-            if (e.key === 'd' && allowDownload) handleDownloadCurrent();
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [handlePrevious, handleNext, onClose, allowDownload, handleDownloadCurrent]);
+    }, [handlePrevious, handleNext, onClose]);
 
     const preloadAdjacent = useCallback((idx) => {
         [-1, 0, 1].forEach(offset => {
@@ -233,14 +174,9 @@ const SlideshowModal = ({ images, galleryName, galleryID, onClose, initialIndex 
                         <p className="text-xs md:text-sm text-gray-400">{currentIndex + 1} of {images.length}</p>
                         {galleryName && <p className="text-xs md:text-sm text-indigo-400 mt-1">{galleryName}</p>}
                     </div>
-                    <div className="flex items-center gap-2">
-                        {allowDownload && (
-                            <button onClick={handleDownloadCurrent} disabled={downloading} className="text-white hover:bg-white/10 p-2 md:p-3 rounded-full">
-                                {downloading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <FiDownload size={20} />}
-                            </button>
-                        )}
-                        <button onClick={onClose} className="text-white hover:bg-white/10 p-2 md:p-3 rounded-full"><FiX size={24} /></button>
-                    </div>
+                    <button onClick={onClose} className="text-white hover:bg-white/10 p-2 md:p-3 rounded-full">
+                        <FiX size={24} />
+                    </button>
                 </div>
             </div>
             <div className="flex-1 flex items-center justify-center p-4">
@@ -248,11 +184,15 @@ const SlideshowModal = ({ images, galleryName, galleryID, onClose, initialIndex 
             </div>
             <div className={`absolute bottom-0 left-0 right-0 p-4 md:p-6 bg-gradient-to-t from-black/80 to-transparent transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
                 <div className="flex items-center justify-center gap-4 md:gap-6">
-                    <button onClick={handlePrevious} className="p-3 md:p-4 bg-white/10 hover:bg-white/20 rounded-full"><FiChevronLeft size={24} /></button>
+                    <button onClick={handlePrevious} className="p-3 md:p-4 bg-white/10 hover:bg-white/20 rounded-full">
+                        <FiChevronLeft size={24} />
+                    </button>
                     <button onClick={() => setIsPlaying(!isPlaying)} className="p-4 md:p-5 bg-indigo-600 hover:bg-indigo-500 rounded-full shadow-xl">
                         {isPlaying ? <FiPause size={24} /> : <FiPlay size={24} />}
                     </button>
-                    <button onClick={handleNext} className="p-3 md:p-4 bg-white/10 hover:bg-white/20 rounded-full"><FiChevronRight size={24} /></button>
+                    <button onClick={handleNext} className="p-3 md:p-4 bg-white/10 hover:bg-white/20 rounded-full">
+                        <FiChevronRight size={24} />
+                    </button>
                 </div>
                 <div className="mt-4 md:mt-6 max-w-2xl mx-auto">
                     <div className="h-1 md:h-1.5 bg-white/20 rounded-full overflow-hidden">
@@ -277,7 +217,6 @@ const ClientGallery = () => {
     const [requiresAccessKey, setRequiresAccessKey] = useState(true);
     const [showSlideshow, setShowSlideshow] = useState(false);
     const [slideshowStartIndex, setSlideshowStartIndex] = useState(0);
-    const [downloadingImageId, setDownloadingImageId] = useState(null);
     const [downloadingAll, setDownloadingAll] = useState(false);
     const [downloadProgress, setDownloadProgress] = useState({ percentage: 0, currentImage: '' });
     const [galleryId, setGalleryId] = useState(null);
@@ -318,7 +257,6 @@ const ClientGallery = () => {
                 const customGalleryId = gallery.galleryId || gallery.galleryID;
 
                 console.log("✅ Using custom gallery ID:", customGalleryId);
-                console.log("❌ NOT using MongoDB ID:", gallery._id);
 
                 const processedImages = (gallery.images || []).map((img, idx) => ({
                     ...img,
@@ -353,70 +291,7 @@ const ClientGallery = () => {
         await validateAndLoadGallery(accessKey.trim());
     };
 
-    const handleDownload = async (image) => {
-        if (!isDownloadAllowed) {
-            setError("Download permission not granted");
-            setTimeout(() => setError(""), 3000);
-            return;
-        }
-
-        const filename = image.originalName || image.imageName || 'image.jpg';
-        const isMobile = isMobileDevice();
-        const iOS = isIOS();
-
-        setDownloadingImageId(image.imageId);
-
-        try {
-            if (isMobile) {
-                if (navigator.share && navigator.canShare) {
-                    try {
-                        const response = await fetch(image.imageUrl);
-                        const blob = await response.blob();
-                        const file = new File([blob], filename, { type: blob.type });
-                        if (navigator.canShare({ files: [file] })) {
-                            await navigator.share({
-                                files: [file],
-                                title: 'Save Image',
-                                text: 'Save this image to your device'
-                            });
-                            setError("Image saved successfully!");
-                            setTimeout(() => setError(""), 2000);
-                            setDownloadingImageId(null);
-                            return;
-                        }
-                    } catch (err) {
-                        console.log("Share failed, using fallback");
-                    }
-                }
-
-                window.open(image.imageUrl, '_blank', 'noopener,noreferrer');
-                setError(iOS
-                    ? "Image opened in new tab. Tap and hold, then 'Add to Photos'."
-                    : "Image opened in new tab. Long press and select 'Save image'."
-                );
-                setTimeout(() => setError(""), 5000);
-                setDownloadingImageId(null);
-                return;
-            }
-
-            const link = document.createElement('a');
-            link.href = image.imageUrl;
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            setError("Download started!");
-            setTimeout(() => setError(""), 2000);
-
-        } catch (error) {
-            console.error("Download error:", error);
-            setError("Download failed. Please try again.");
-            setTimeout(() => setError(""), 3000);
-        } finally {
-            setDownloadingImageId(null);
-        }
-    };
-
+    // Mobile-friendly ZIP download
     const handleDownloadAll = async () => {
         if (!isDownloadAllowed) {
             setError("Download permission not granted");
@@ -430,6 +305,7 @@ const ClientGallery = () => {
         }
 
         console.log("📦 Starting ZIP download for gallery:", galleryId);
+        console.log("📱 Mobile device:", isMobileDevice());
 
         // Clear any existing polling interval
         if (pollingInterval) {
@@ -458,12 +334,18 @@ const ClientGallery = () => {
                 const downloadFullUrl = getApiUrl(data.downloadUrl);
                 console.log("📥 Download URL:", downloadFullUrl);
 
-                const link = document.createElement('a');
-                link.href = downloadFullUrl;
-                link.download = data.filename;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+                // For mobile: use window.location to trigger download
+                if (isMobileDevice()) {
+                    setError("Your download will start shortly. Check your Downloads folder.");
+                    window.open(downloadFullUrl, '_blank');
+                } else {
+                    const link = document.createElement('a');
+                    link.href = downloadFullUrl;
+                    link.download = data.filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }
 
                 const sizeMB = data.size ? (data.size / 1024 / 1024).toFixed(1) : '';
                 setError(`Download complete! ${sizeMB}MB`);
@@ -493,12 +375,18 @@ const ClientGallery = () => {
                             const downloadFullUrl = getApiUrl(statusData.downloadUrl);
                             console.log("📥 Download URL:", downloadFullUrl);
 
-                            const link = document.createElement('a');
-                            link.href = downloadFullUrl;
-                            link.download = statusData.filename;
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
+                            // For mobile: use window.location to trigger download
+                            if (isMobileDevice()) {
+                                setError("Your download will start shortly. Check your Downloads folder.");
+                                window.open(downloadFullUrl, '_blank');
+                            } else {
+                                const link = document.createElement('a');
+                                link.href = downloadFullUrl;
+                                link.download = statusData.filename;
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                            }
 
                             const sizeMB = statusData.size ? (statusData.size / 1024 / 1024).toFixed(1) : '';
                             setError(`Download complete! ${sizeMB}MB`);
@@ -552,12 +440,6 @@ const ClientGallery = () => {
     };
 
     const isDownloadAllowed = galleryData?.downloadPermission === true || galleryData?.gallerySettings?.allowDownloads === true;
-
-    useEffect(() => {
-        if (galleryId) {
-            console.log("🔍 Current galleryId in state:", galleryId);
-        }
-    }, [galleryId]);
 
     if (isFindingGallery || isLoading) {
         return (
@@ -615,65 +497,134 @@ const ClientGallery = () => {
                         <div className="flex flex-wrap items-center gap-6 text-gray-400 text-xs font-bold uppercase tracking-widest">
                             <span className="flex items-center gap-2"><FiCamera className="text-indigo-500" /> {galleryData?.studioName || "Studio"}</span>
                             <span className="flex items-center gap-2"><FiClock className="text-indigo-500" /> {images.length} High-Resolution Captures</span>
-                            {!isDownloadAllowed && <span className="flex items-center gap-2 text-amber-500/70"><FiDownload size={12} /> Download Disabled</span>}
                         </div>
                     </div>
                     <div className="flex flex-col items-end gap-3 w-full md:w-auto">
                         {isDownloadAllowed && (
-                            <button onClick={handleDownloadAll} disabled={images.length === 0 || downloadingAll} className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-bold text-xs flex items-center justify-center gap-3 transition-all w-full md:w-auto disabled:opacity-50">
-                                {downloadingAll ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span>{downloadProgress.percentage > 0 ? `${downloadProgress.percentage}%` : 'Preparing...'}</span></> : <><FiDownload className="text-sm" /> Download All ({images.length} images)</>}
+                            <button onClick={handleDownloadAll} disabled={images.length === 0 || downloadingAll} className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-bold text-xs flex items-center justify-center gap-3 transition-all shadow-xl shadow-indigo-600/20 active:scale-95 w-full md:w-auto disabled:opacity-50">
+                                {downloadingAll ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span>{downloadProgress.percentage > 0 ? `${downloadProgress.percentage}%` : 'Preparing...'}</span></> : <><FiDownload className="text-sm" /> Download All Gallery ({images.length} images)</>}
                             </button>
                         )}
                     </div>
                 </div>
 
+                {/* Download Instructions Banner - Shows for both mobile and desktop */}
+                {isDownloadAllowed && (
+                    <div className="bg-gradient-to-r from-indigo-950/30 to-purple-950/30 border border-indigo-500/30 rounded-xl p-4">
+                        <div className="text-center">
+                            <p className="text-indigo-300 text-xs uppercase tracking-wider font-bold mb-2">📸 How to Download</p>
+                            <div className="flex flex-col md:flex-row justify-center gap-4 text-gray-400 text-xs">
+                                <div className="flex items-center justify-center gap-2">
+                                    <span className="w-6 h-6 bg-indigo-600/30 rounded-full flex items-center justify-center text-indigo-300 text-xs font-bold">1</span>
+                                    <span>Click <FiDownload className="inline mx-1" size={12} /> "Download All Gallery" button above</span>
+                                </div>
+                                <div className="flex items-center justify-center gap-2">
+                                    <span className="w-6 h-6 bg-indigo-600/30 rounded-full flex items-center justify-center text-indigo-300 text-xs font-bold">2</span>
+                                    <span>Wait for ZIP file to be created (may take a few seconds)</span>
+                                </div>
+                                <div className="flex items-center justify-center gap-2">
+                                    <span className="w-6 h-6 bg-indigo-600/30 rounded-full flex items-center justify-center text-indigo-300 text-xs font-bold">3</span>
+                                    <span>{isMobileDevice() ? "Tap and hold, then select 'Save to Files'" : "File will save automatically to Downloads"}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Single Image Instructions */}
+                {!isMobileDevice() && (
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                        <p className="text-gray-500 text-[11px]">💡 <span className="text-gray-400">Tip:</span> Click any image to view fullscreen. To save individual images, right-click and select "Save image as..."</p>
+                    </div>
+                )}
+
+                {isMobileDevice() && (
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                        <p className="text-gray-500 text-[11px]">💡 <span className="text-gray-400">Tip:</span> Tap any image to view fullscreen. To save individual images, tap and hold, then select "Save to Photos" or "Download Image".</p>
+                    </div>
+                )}
+
                 {error && <div className="fixed bottom-4 right-4 z-50 bg-black/90 backdrop-blur-lg border border-indigo-500/30 rounded-xl p-3 shadow-2xl max-w-md"><p className="text-[11px] text-indigo-400">{error}</p></div>}
 
                 <div className="flex justify-center gap-4">
-                    <button onClick={handleSlideshow} disabled={images.length === 0} className="flex items-center gap-2 px-6 py-2 bg-white/5 border border-white/10 rounded-full text-[10px] uppercase font-bold tracking-widest text-gray-300 hover:text-white hover:bg-indigo-600/20 hover:border-indigo-500/30 transition-all disabled:opacity-50"><FiPlay size={12} className="text-indigo-400" /> Slideshow Mode</button>
+                    <button onClick={handleSlideshow} disabled={images.length === 0} className="flex items-center gap-2 px-6 py-2 bg-white/5 border border-white/10 rounded-full text-[10px] uppercase font-bold tracking-widest text-gray-300 hover:text-white hover:bg-indigo-600/20 hover:border-indigo-500/30 transition-all disabled:opacity-50">
+                        <FiPlay size={12} className="text-indigo-400" /> Slideshow Mode
+                    </button>
                 </div>
 
                 {images.length === 0 ? (
-                    <div className="text-center py-20 border border-white/5 rounded-3xl bg-white/[0.01]"><div className="w-20 h-20 mx-auto mb-6 rounded-full bg-white/5 flex items-center justify-center"><FiCamera size={32} className="text-gray-600" /></div><p className="text-gray-500 text-sm">No images in this gallery yet.</p></div>
+                    <div className="text-center py-20 border border-white/5 rounded-3xl bg-white/[0.01]">
+                        <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-white/5 flex items-center justify-center"><FiCamera size={32} className="text-gray-600" /></div>
+                        <p className="text-gray-500 text-sm">No images in this gallery yet.</p>
+                    </div>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
                         {images.map((img, idx) => (
-                            <div key={img.imageId || img._id || idx} className="group relative aspect-square bg-white/5 rounded-2xl overflow-hidden cursor-zoom-in border border-white/5 hover:border-indigo-500/30 transition-all" onClick={() => setSelectedImage(img)}>
-                                <img src={img.imageUrl || "/placeholder.jpg"} alt={img.imageName || img.originalName || `Image ${idx + 1}`} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" loading="lazy" onError={(e) => e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 24 24" fill="none" stroke="%23666" stroke-width="1"%3E%3Crect x="3" y="3" width="18" height="18" rx="2"%3E%3C/rect%3E%3Ccircle cx="8.5" cy="8.5" r="1.5"%3E%3C/circle%3E%3Cpolyline points="21 15 16 10 5 21"%3E%3C/polyline%3E%3C/svg%3E'} />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-between p-4">
-                                    <div className="flex justify-end">
-                                        {isDownloadAllowed && (
-                                            <button onClick={(e) => { e.stopPropagation(); handleDownload(img); }} disabled={downloadingImageId !== null} className="p-2 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-indigo-600 transition-all active:scale-95 disabled:opacity-50">
-                                                {downloadingImageId === (img.imageId || img._id || img.id) ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <FiDownload size={16} />}
-                                            </button>
-                                        )}
+                            <div
+                                key={img.imageId || img._id || idx}
+                                className="group relative aspect-square bg-white/5 rounded-2xl overflow-hidden cursor-pointer border border-white/5 hover:border-indigo-500/30 transition-all duration-300"
+                                onClick={() => setSelectedImage(img)}
+                            >
+                                <img
+                                    src={img.imageUrl || "/placeholder.jpg"}
+                                    alt={img.imageName || img.originalName || `Image ${idx + 1}`}
+                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                    loading="lazy"
+                                    onError={(e) => e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 24 24" fill="none" stroke="%23666" stroke-width="1"%3E%3Crect x="3" y="3" width="18" height="18" rx="2"%3E%3C/rect%3E%3Ccircle cx="8.5" cy="8.5" r="1.5"%3E%3C/circle%3E%3Cpolyline points="21 15 16 10 5 21"%3E%3C/polyline%3E%3C/svg%3E'}
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-white font-medium text-xs tracking-tight truncate flex-1 mr-2">{img.imageName || img.originalName || `Image ${idx + 1}`}</p>
+                                        <div className="flex items-center gap-1 text-white/60">
+                                            <FiMaximize2 size={14} />
+                                        </div>
                                     </div>
-                                    <div className="flex items-center justify-between"><p className="text-white font-bold text-xs tracking-tight truncate flex-1 mr-2">{img.imageName || img.originalName || `Image ${idx + 1}`}</p><FiMaximize2 className="text-white/70 w-4 h-4 flex-shrink-0" /></div>
                                 </div>
-                                {isDownloadAllowed && (
-                                    <div className="absolute bottom-2 right-2 sm:hidden">
-                                        <button onClick={(e) => { e.stopPropagation(); handleDownload(img); }} disabled={downloadingImageId !== null} className="p-2.5 bg-indigo-600/95 backdrop-blur-md rounded-full text-white active:scale-95 shadow-lg disabled:opacity-50">
-                                            {downloadingImageId === (img.imageId || img._id || img.id) ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <FiDownload size={14} />}
-                                        </button>
-                                    </div>
-                                )}
                             </div>
                         ))}
                     </div>
                 )}
             </main>
             <Footer />
-            {showSlideshow && <SlideshowModal images={images} galleryName={galleryData?.galleryName} galleryID={galleryId} onClose={() => setShowSlideshow(false)} initialIndex={slideshowStartIndex} allowDownload={isDownloadAllowed} onDownload={handleDownload} />}
+            {showSlideshow && (
+                <SlideshowModal
+                    images={images}
+                    galleryName={galleryData?.galleryName}
+                    onClose={() => setShowSlideshow(false)}
+                    initialIndex={slideshowStartIndex}
+                />
+            )}
             {selectedImage && (
                 <div className="fixed inset-0 z-[100] bg-black flex flex-col">
                     <div className="flex items-center justify-between px-4 py-3 bg-black/50 backdrop-blur-md border-b border-white/5">
-                        <button onClick={() => setSelectedImage(null)} className="text-white hover:bg-white/10 p-2 rounded-full"><FiX size={20} /></button>
+                        <button onClick={() => setSelectedImage(null)} className="text-white hover:bg-white/10 p-2 rounded-full transition-all"><FiX size={20} /></button>
                         <div className="flex items-center gap-2">
-                            {isDownloadAllowed && <button onClick={() => handleDownload(selectedImage)} disabled={downloadingImageId !== null} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white text-sm disabled:opacity-50"><FiDownload size={14} /> Download</button>}
-                            <button onClick={() => console.log('favorite')} className="p-2 rounded-lg text-white"><FiHeart size={20} /></button>
+                            <button onClick={() => console.log('favorite')} className="p-2 rounded-lg text-white/60 hover:text-white transition-colors"><FiHeart size={18} /></button>
                         </div>
                     </div>
-                    <div className="flex-1 flex items-center justify-center p-4"><img src={selectedImage.imageUrl} className="max-w-full max-h-[80vh] object-contain" alt={selectedImage.imageName} /></div>
+                    <div className="flex-1 flex items-center justify-center p-4">
+                        <img src={selectedImage.imageUrl} className="max-w-full max-h-[80vh] object-contain" alt={selectedImage.imageName} />
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-8 py-4 sm:py-6 bg-black border-t border-white/5 z-10 gap-3 sm:gap-0">
+                        <div className="flex flex-wrap gap-4 sm:gap-12">
+                            <div>
+                                <p className="text-[8px] text-gray-500 uppercase font-black mb-1">Filename</p>
+                                <p className="text-[9px] sm:text-[10px] text-white font-mono truncate max-w-[150px] sm:max-w-none">
+                                    {selectedImage.originalName || selectedImage.imageName || "Unknown"}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-[8px] text-gray-500 uppercase font-black mb-1">To Save</p>
+                                <p className="text-[9px] sm:text-[10px] text-white font-mono">
+                                    {isMobileDevice() ? "Tap & hold → Save to Photos" : "Right-click → Save image as..."}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <button className="text-gray-400 hover:text-white transition-colors"><FiShare2 size={16} /></button>
+                            <button className="text-gray-400 hover:text-white transition-colors"><FiInfo size={16} /></button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
