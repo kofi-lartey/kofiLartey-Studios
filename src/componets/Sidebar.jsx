@@ -77,7 +77,7 @@ const Sidebar = ({ isMobileMenuOpen, closeMobileMenu }) => {
         { icon: <FiGrid />, label: "Dashboard", path: "/dashboard" },
         { icon: <FiImage />, label: "Galleries", path: "/galleries" },
         { icon: <FiUsers />, label: "Clients", path: "/clients" },
-        { icon: <FiShield />, label: "Admin", path: "/admin" },
+        // { icon: <FiShield />, label: "Admin", path: "/admin" },
         { icon: <FiSettings />, label: "Settings", path: "/settings" },
     ];
 
