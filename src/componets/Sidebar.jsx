@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { FiGrid, FiImage, FiBarChart2, FiUsers, FiSettings, FiPlus, FiHelpCircle, FiLogOut, FiX } from "react-icons/fi";
+import { FiGrid, FiImage, FiBarChart2, FiUsers, FiSettings, FiPlus, FiHelpCircle, FiLogOut, FiX, FiShield } from "react-icons/fi";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
@@ -77,6 +77,7 @@ const Sidebar = ({ isMobileMenuOpen, closeMobileMenu }) => {
         { icon: <FiGrid />, label: "Dashboard", path: "/dashboard" },
         { icon: <FiImage />, label: "Galleries", path: "/galleries" },
         { icon: <FiUsers />, label: "Clients", path: "/clients" },
+        { icon: <FiShield />, label: "Admin", path: "/admin" },
         { icon: <FiSettings />, label: "Settings", path: "/settings" },
     ];
 

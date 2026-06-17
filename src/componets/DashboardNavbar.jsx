@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { get } from "../utils/apiCall";
 
-const DashboardNavbar = ({ onMenuToggle, isMobileMenuOpen }) => {
+const DashboardNavbar = ({ onMenuToggle, isMobileMenuOpen, title = 'Dashboard' }) => {
   const [userData, setUserData] = useState({
     fullName: "",
     studioName: "",
@@ -130,7 +130,7 @@ const DashboardNavbar = ({ onMenuToggle, isMobileMenuOpen }) => {
                 alt="kofiLartey Studios Logo"
                 className="h-6 w-auto"
             />
-            <h1 className="text-lg md:text-xl font-bold tracking-tight text-blue-100">Dashboard</h1>
+            <h1 className="text-lg md:text-xl font-bold tracking-tight text-blue-100">{title}</h1>
         </div>
 
         {/* Search bar - collapsed on mobile to toggle */}
