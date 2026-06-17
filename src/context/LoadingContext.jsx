@@ -220,7 +220,7 @@ export const LoadingProvider = ({ children }) => {
                 >
                   <stop offset="0%" stopColor="#6366f1" />
                   <stop offset="50%" stopColor="#8b5cf6" />
-                  <stop offset="100%" stopColor="#ec4899" />
+                  <stop offset="100%" stopColor="#2563eb" />
                 </linearGradient>
               </defs>
             </svg>
@@ -241,7 +241,7 @@ export const LoadingProvider = ({ children }) => {
 
             <div className="w-52 h-[5px] bg-white/10 rounded-full overflow-hidden">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all duration-150"
+                className="h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-sky-500 transition-all duration-150"
                 style={{
                   width: `${progress}%`,
                 }}

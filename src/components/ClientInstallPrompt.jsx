@@ -56,7 +56,7 @@ const ClientInstallPrompt = () => {
         initial={{ opacity: 0, y: 50 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 50 }}
-        className="fixed bottom-0 left-0 right-0 md:bottom-6 md:left-6 md:right-auto bg-gradient-to-r from-pink-500 to-rose-500 text-white p-4 rounded-t-2xl md:rounded-2xl shadow-2xl z-50 max-w-md mx-auto md:mx-0"
+        className="fixed bottom-0 left-0 right-0 md:bottom-6 md:left-6 md:right-auto bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 rounded-t-2xl md:rounded-2xl shadow-2xl z-50 max-w-md mx-auto md:mx-0"
       >
         <div className="flex items-start gap-3">
           <div className="flex-shrink-0 w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
@@ -71,7 +71,7 @@ const ClientInstallPrompt = () => {
               {!isIOS && deferredPrompt && (
                 <button
                   onClick={handleInstall}
-                  className="px-4 py-2 bg-white text-pink-600 rounded-full font-semibold text-sm hover:bg-white/90 transition-colors"
+                  className="px-4 py-2 bg-white text-blue-600 rounded-full font-semibold text-sm hover:bg-white/90 transition-colors"
                 >
                   Install Now
                 </button>

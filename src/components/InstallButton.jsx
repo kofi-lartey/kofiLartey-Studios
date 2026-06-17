@@ -57,7 +57,7 @@ const InstallButton = () => {
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={handleInstall}
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white font-semibold rounded-full shadow-lg hover:shadow-pink-500/25 transition-all duration-300 animate-pulse"
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-full shadow-lg hover:shadow-blue-500/25 transition-all duration-300 animate-pulse"
         aria-label="Install KofiLartey Studios"
       >
         <FiDownload className="w-5 h-5" />

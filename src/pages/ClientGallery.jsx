@@ -221,6 +221,7 @@ const ClientGallery = () => {
     const [downloadProgress, setDownloadProgress] = useState({ percentage: 0, currentImage: '' });
     const [galleryId, setGalleryId] = useState(null);
     const [pollingInterval, setPollingInterval] = useState(null);
+    const [hasInitialized, setHasInitialized] = useState(false); // FIX: Added to prevent re-initialization
     const { getCached } = useImagePreloader(images);
 
     // Cleanup polling on unmount
@@ -232,18 +233,27 @@ const ClientGallery = () => {
         };
     }, [pollingInterval]);
 
+    // FIX: Added hasInitialized to prevent multiple calls
     useEffect(() => {
+        if (hasInitialized) return; // Prevent re-initialization
+        
         const urlAccessKey = searchParams.get('accessKey');
         if (urlAccessKey) {
             setAccessKey(urlAccessKey);
             validateAndLoadGallery(urlAccessKey);
+            setHasInitialized(true);
         } else {
             setIsFindingGallery(false);
             setRequiresAccessKey(true);
+            setHasInitialized(true);
         }
-    }, []);
+        // FIX: Added proper dependencies
+    }, [searchParams]); // Only depends on searchParams
 
     const validateAndLoadGallery = async (key) => {
+        // FIX: Prevent multiple simultaneous calls
+        if (isLoading) return;
+        
         setIsLoading(true);
         setError("");
         try {
@@ -334,10 +344,20 @@ const ClientGallery = () => {
                 const downloadFullUrl = getApiUrl(data.downloadUrl);
                 console.log("📥 Download URL:", downloadFullUrl);
 
-                // For mobile: use window.location to trigger download
+                // FIX: Better mobile download handling
                 if (isMobileDevice()) {
+                    // For mobile: Use a more reliable approach
                     setError("Your download will start shortly. Check your Downloads folder.");
-                    window.open(downloadFullUrl, '_blank');
+                    // Create a temporary anchor and trigger download
+                    const link = document.createElement('a');
+                    link.href = downloadFullUrl;
+                    link.download = data.filename || 'gallery.zip';
+                    link.target = '_blank';
+                    document.body.appendChild(link);
+                    link.click();
+                    setTimeout(() => {
+                        document.body.removeChild(link);
+                    }, 1000);
                 } else {
                     const link = document.createElement('a');
                     link.href = downloadFullUrl;
@@ -375,10 +395,18 @@ const ClientGallery = () => {
                             const downloadFullUrl = getApiUrl(statusData.downloadUrl);
                             console.log("📥 Download URL:", downloadFullUrl);
 
-                            // For mobile: use window.location to trigger download
+                            // FIX: Better mobile download handling
                             if (isMobileDevice()) {
                                 setError("Your download will start shortly. Check your Downloads folder.");
-                                window.open(downloadFullUrl, '_blank');
+                                const link = document.createElement('a');
+                                link.href = downloadFullUrl;
+                                link.download = statusData.filename || 'gallery.zip';
+                                link.target = '_blank';
+                                document.body.appendChild(link);
+                                link.click();
+                                setTimeout(() => {
+                                    document.body.removeChild(link);
+                                }, 1000);
                             } else {
                                 const link = document.createElement('a');
                                 link.href = downloadFullUrl;
