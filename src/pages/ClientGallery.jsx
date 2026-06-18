@@ -221,41 +221,57 @@ const ClientGallery = () => {
     const [downloadProgress, setDownloadProgress] = useState({ percentage: 0, currentImage: '' });
     const [galleryId, setGalleryId] = useState(null);
     const [pollingInterval, setPollingInterval] = useState(null);
-    const [hasInitialized, setHasInitialized] = useState(false); // FIX: Added to prevent re-initialization
+    const [hasInitialized, setHasInitialized] = useState(false);
+    // FIX: Add a ref to track if component is mounted
+    const isMounted = useRef(true);
+    // FIX: Add a ref to track if initialization is in progress
+    const isInitializing = useRef(false);
     const { getCached } = useImagePreloader(images);
 
     // Cleanup polling on unmount
     useEffect(() => {
         return () => {
+            isMounted.current = false;
             if (pollingInterval) {
                 clearInterval(pollingInterval);
             }
         };
     }, [pollingInterval]);
 
-    // FIX: Added hasInitialized to prevent multiple calls
+    // FIX: Completely rewrite the initialization useEffect
     useEffect(() => {
-        if (hasInitialized) return; // Prevent re-initialization
+        // Prevent multiple initializations
+        if (isInitializing.current) return;
         
         const urlAccessKey = searchParams.get('accessKey');
-        if (urlAccessKey) {
+        
+        // Only run if we haven't initialized and there's an access key
+        if (!hasInitialized && urlAccessKey) {
+            isInitializing.current = true;
             setAccessKey(urlAccessKey);
             validateAndLoadGallery(urlAccessKey);
             setHasInitialized(true);
-        } else {
+        } else if (!hasInitialized && !urlAccessKey) {
+            // No access key in URL
             setIsFindingGallery(false);
             setRequiresAccessKey(true);
             setHasInitialized(true);
         }
-        // FIX: Added proper dependencies
+        
+        // FIX: Cleanup function to reset initialization flag if component unmounts
+        return () => {
+            isInitializing.current = false;
+        };
     }, [searchParams]); // Only depends on searchParams
 
     const validateAndLoadGallery = async (key) => {
-        // FIX: Prevent multiple simultaneous calls
-        if (isLoading) return;
+        // Prevent multiple simultaneous calls
+        if (isLoading || isInitializing.current) return;
         
+        isInitializing.current = true;
         setIsLoading(true);
         setError("");
+        
         try {
             const response = await post('/gallery/public', { accessKey: key });
             console.log('🎨 Gallery access response:', response);
@@ -289,6 +305,7 @@ const ClientGallery = () => {
         } finally {
             setIsLoading(false);
             setIsFindingGallery(false);
+            isInitializing.current = false;
         }
     };
 
